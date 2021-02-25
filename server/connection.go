@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"strings"
@@ -23,81 +24,101 @@ type Connection struct {
 	ticker        *time.Ticker
 }
 
-func (connection *Connection) startTimer(timeout int) {
-	connection.ticker = time.NewTicker(time.Duration(timeout) * time.Second)
-	for _ = range connection.ticker.C {
+func (c *Connection) startTimer(timeout int) {
+	c.ticker = time.NewTicker(time.Duration(timeout) * time.Second)
+	for _ = range c.ticker.C {
 		//Проверяем на признак подключения
-		if connection.flagConnected {
+		if c.flagConnected {
 			//Через timeout времени ставим флаг в неподключен
-			connection.Lock()
-			connection.flagConnected = false
-			connection.Unlock()
+			c.Lock()
+			c.flagConnected = false
+			c.Unlock()
 			continue
 		} else {
-			connection.server.disconnect()
+			c.disconnect()
 		}
 	}
 }
 
-func (connection *Connection) update(addr *net.UDPAddr, header protocol.Header) /*(err error)*/ {
+func (c *Connection) updated(addr *net.UDPAddr, header protocol.Header) bool {
 
-	connection.Lock()
-	connection.flagConnected = true
-	connection.Unlock()
+	c.Lock()
+	c.flagConnected = true
+	c.Unlock()
 
-	if !connection.Equals(header) || !strings.EqualFold(connection.IpAddress.String(), addr.String()) /*!c.IpAddress.IP.Equal(addr.IP)*/ {
-		connection.Hostname = header.Hostname
-		connection.IpAddress = addr
-		connection.Domain = header.Domain
-		connection.Login = header.Login
-		connection.Version = header.Version
+	if !c.Equals(header) || !strings.EqualFold(c.IpAddress.String(), addr.String()) /*!c.IpAddress.IP.Equal(addr.IP)*/ {
+		c.Hostname = header.Hostname
+		c.IpAddress = addr
+		c.Domain = header.Domain
+		c.Login = header.Login
+		c.Version = header.Version
 
-		go connection.saveConnection()
+		return true
 	}
+
+	return false
 }
 
-func (connection *Connection) Equals(header protocol.Header) bool {
-	if connection.Hostname != header.Hostname ||
-		connection.Login != header.Login ||
-		connection.Domain != header.Domain ||
-		connection.Version != header.Version {
+func (c *Connection) Equals(header protocol.Header) bool {
+	if c.Hostname != header.Hostname ||
+		c.Login != header.Login ||
+		c.Domain != header.Domain ||
+		c.Version != header.Version {
 		return false
 	}
 	return true
 }
 
-func (connection *Connection) disconnect() {
-	if connection == nil {
+func (c *Connection) disconnect() {
+	if c == nil {
 		return
 	}
-	connection.ticker.Stop()
-	connection.flagConnected = false
+	c.ticker.Stop()
+	c.flagConnected = false
 	t := time.Now()
-	connection.DisconnectTime = &t
+	c.DisconnectTime = &t
 
-	go connection.saveConnection()
-
-	connection.server.Connections.Delete(connection.Hostname)
+	//Удаляем подключение из списка
+	c.server.deleteConnection(c.Hostname)
+	//событие при отключении
+	c.server.handleDisconnected(c)
 }
 
-func (connection *Connection) saveConnection() {
-	handleSaveConnection(
-		connection.Hostname,
-		connection.IpAddress.IP.String(),
-		connection.Login,
-		connection.Domain,
-		connection.Version,
-		connection.flagConnected,
-		connection.ConnectTime,
-		connection.DisconnectTime)
+func (c *Connection) send(response *protocol.Response) (n int, err error) {
+
+	//Сериализуем данные в json
+	sendMessage, err := json.Marshal(response)
+	if err != nil {
+		return
+	}
+
+	//Запускаем отправку
+	remoteAddr, err := net.ResolveUDPAddr(Udp4, c.IpAddress.String())
+	if err != nil {
+		return
+		//logger.Save("server", "send", err.Error())
+	}
+	conn, err := net.DialUDP(Udp4, nil, remoteAddr)
+	if err != nil {
+		return
+	}
+
+	defer conn.Close()
+
+	n, err = conn.Write(sendMessage)
+	if err != nil {
+		return
+	}
+
+	return
 }
 
-func (connection *Connection) String() string {
+func (c *Connection) String() string {
 	disconnect_time := "null"
-	if connection.DisconnectTime != nil {
-		disconnect_time = connection.DisconnectTime.Format("2006-01-02 15:04:05")
+	if c.DisconnectTime != nil {
+		disconnect_time = c.DisconnectTime.Format("2006-01-02 15:04:05")
 	}
 	return fmt.Sprintf("hostname: %s, ip: %s, domain: %s, login: %s, version: %s, is_connected: %t, connect_time: %s, disconnect_time: %s",
-		connection.Hostname, connection.IpAddress.String(), connection.Domain, connection.Login, connection.Version, connection.flagConnected,
-		connection.ConnectTime.Format("2006-01-02 15:04:05"), disconnect_time)
+		c.Hostname, c.IpAddress.String(), c.Domain, c.Login, c.Version, c.flagConnected,
+		c.ConnectTime.Format("2006-01-02 15:04:05"), disconnect_time)
 }

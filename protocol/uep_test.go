@@ -15,7 +15,7 @@ func TestUnmarshal(t *testing.T) {
 			Version:  "3.3.6",
 			Event:    EventDisconnect,
 		},
-		Body:   &Body{
+		Body:   &Request{
 			Route:  "example",
 			Id:     "123456",
 			Method: MethodSet,

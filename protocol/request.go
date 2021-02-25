@@ -2,7 +2,7 @@ package protocol
 
 import "fmt"
 
-type Body struct {
+type Request struct {
 	Route  string
 	Id     string  `eup:"id"`
 	Method Methods `eup:"method"`
@@ -10,7 +10,7 @@ type Body struct {
 	Data   []byte  `eup:"data,omitempty"`
 }
 
-func (body *Body) String() string {
+func (body *Request) String() string {
 	data := "null"
 	if body.Data != nil {
 		data = fmt.Sprintf("%v", body.Data)

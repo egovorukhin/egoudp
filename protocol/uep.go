@@ -8,8 +8,9 @@ import (
 )
 
 type UEP struct {
-	Header Header `eup:"header"`
-	Body   *Body  `eup:"bodyChar,omitempty"`
+	Header   Header   `eup:"header"`
+	Request  *Request `eup:"bodyChar,omitempty"`
+	Response *Response
 }
 
 const (
@@ -45,13 +46,13 @@ func (uep *UEP) Marshal() (b []byte) {
 	buf.Write([]byte(fmt.Sprintf("%d:%s", len(header.Version), header.Version)))
 	buf.Write([]byte(fmt.Sprintf("1:%d", header.Event)))	
 	//bodyChar
-	body := uep.Body
+	req := uep.Request
 	buf.Write([]byte(string(bodyChar)))
-	buf.Write([]byte(fmt.Sprintf("%d:%s", len(body.Route), body.Route)))
-	buf.Write([]byte(fmt.Sprintf("%d:%s", len(body.Id), body.Id)))
-	buf.Write([]byte(fmt.Sprintf("1:%d", body.Method)))
-	buf.Write([]byte(fmt.Sprintf("%d:%s", len(body.Type), body.Type)))
-	buf.Write([]byte(fmt.Sprintf("%d:%s", len(body.Data), body.Data)))
+	buf.Write([]byte(fmt.Sprintf("%d:%s", len(req.Route), req.Route)))
+	buf.Write([]byte(fmt.Sprintf("%d:%s", len(req.Id), req.Id)))
+	buf.Write([]byte(fmt.Sprintf("1:%d", req.Method)))
+	buf.Write([]byte(fmt.Sprintf("%d:%s", len(req.Type), req.Type)))
+	buf.Write([]byte(fmt.Sprintf("%d:%s", len(req.Data), req.Data)))
 	buf.Write([]byte(string(endChar)))
 	
 	return buf.Bytes()
@@ -99,7 +100,7 @@ func Unmarshal(b []byte) (uep *UEP, err error) {
 	//body
 	if b[0] == bodyChar {
 
-		body := new(Body)
+		body := new(Request)
 		
 		//1. route	
 		body.Route, b, err = findField(b[1:])
@@ -129,7 +130,7 @@ func Unmarshal(b []byte) (uep *UEP, err error) {
 		}
 		body.Data = []byte(data)
 
-		uep.Body = body
+		uep.Request = body
 	}
 
 	return uep, nil
@@ -150,8 +151,8 @@ func findField(b []byte) (string, []byte, error) {
 
 func (uep *UEP) String() string {
 	body := "null"
-	if uep.Body != nil {
-		body = fmt.Sprintf("{%s}", uep.Body.String())
+	if uep.Request != nil {
+		body = fmt.Sprintf("{%s}", uep.Request.String())
 	}
 	return fmt.Sprintf("header: {%s}, body: %s", uep.Header.String(), body)
 }

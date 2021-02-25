@@ -1,5 +1,4 @@
-module udpserver
+module github.com/egovorukhin/egoudp
 
 go 1.15
 
-require github.com/egovorukhin/egologger v1.0.0
