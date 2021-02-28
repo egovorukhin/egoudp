@@ -3,11 +3,11 @@ package protocol
 import "fmt"
 
 type Header struct {
-	Hostname string `eup:"hostname"`
-	Login    string `eup:"login"`
-	Domain   string `eup:"domain"`
-	Version  string `eup:"version"`
-	Event    Events `eup:"event"`
+	Hostname string
+	Login    string
+	Domain   string
+	Version  string
+	Event    Events
 }
 
 func (h Header) IsNil() bool {

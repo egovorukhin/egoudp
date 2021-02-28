@@ -11,27 +11,23 @@ import (
 	"time"
 )
 
-//var log = egologger.New(nil, "server")
-
 const Udp4 = "udp4"
 
 //События
-/*type HandleSaveConnection func(hostname string, ipaddress string, login string, domain string, version string,
-	connected bool, connectTime time.Time, disconnectTime *time.Time)*/
-type HandleConnected func(c *Connection)
-type HandleDisconnected func(c *Connection)
+type HandleConnected func(c *Connection) error
+type HandleDisconnected func(c *Connection) error
 
-//Функция которая вызывает при событии получения определённого маршоута
-type FuncHandler func(resp *protocol.Response, req protocol.Request)
+//Функция которая вызывается при событии получения определённого маршоута
+type FuncHandler func(c *Connection, resp protocol.IResponse, req protocol.Request)
 
 type Server struct {
-	Connections          sync.Map //*Connections
-	listener             *net.UDPConn
-	Config               Config
-	Started              bool
-	router               sync.Map
+	Connections sync.Map //*Connections
+	listener    *net.UDPConn
+	Config      Config
+	Started     bool
+	Router      sync.Map
 	//handleSaveConnection HandleSaveConnection
-	handleConnected HandleConnected
+	handleConnected    HandleConnected
 	handleDisconnected HandleDisconnected
 }
 
@@ -44,11 +40,13 @@ type Config struct {
 
 type IServer interface {
 	GetConnections() map[string]*Connection
+	GetRoutes() []string
 	Start() error
 	Stop() error
 	Send(string, *protocol.Response) (int, error)
-	//HandleSaveConnection(HandleSaveConnection)
 	SetRoute(string, FuncHandler)
+	HandleConnected(handler HandleConnected)
+	HandleDisconnected(handler HandleDisconnected)
 }
 
 func NewServer(config Config) IServer {
@@ -57,18 +55,6 @@ func NewServer(config Config) IServer {
 		Config:      config,
 		Started:     false,
 	}
-}
-/*
-func (s *Server) HandleSaveConnection(handler HandleSaveConnection) {
-	s.handleSaveConnection = handler
-}*/
-
-func (s *Server) GetConnections() (connections map[string]*Connection) {
-	s.Connections.Range(func(key, value interface{}) bool {
-		connections[key.(string)] = value.(*Connection)
-		return true
-	})
-	return
 }
 
 func (s *Server) Start() (err error) {
@@ -91,11 +77,10 @@ func (s *Server) Start() (err error) {
 				break
 			}
 
-			buffer := make([]byte, 1024* s.Config.BufferSize)
+			buffer := make([]byte, s.Config.BufferSize)
 
 			n, addr, err := s.listener.ReadFromUDP(buffer)
 			if err != nil {
-				//log.Error(fmt.Sprintf("listen %s: %s", addr, err.Error()))
 				continue
 			}
 
@@ -136,127 +121,100 @@ func (s *Server) newConnection(addr *net.UDPAddr, header protocol.Header) *Conne
 	return connection
 }
 
-func (s *Server) deleteConnection(hostname string)  {
+func (s *Server) deleteConnection(hostname string) {
 	s.Connections.Delete(hostname)
 }
 
 func (s *Server) handleBufferParse(addr *net.UDPAddr, buffer []byte) {
 
-	message, err := protocol.Unmarshal(buffer)
+	packet := new(protocol.Packet)
+	err := packet.Unmarshal(buffer)
 	if err != nil {
 		return
 	}
 
-	if !message.Header.IsNil() {
+	if !packet.Header.IsNil() {
 		//Приводим к правильному формату данные - эстетика
-		message.Header.Login = strings.ToLower(message.Header.Login)
-		message.Header.Domain = strings.ToUpper(message.Header.Domain)
-		message.Header.Hostname = strings.ToUpper(message.Header.Hostname)
+		packet.Header.Login = strings.ToLower(packet.Header.Login)
+		packet.Header.Domain = strings.ToUpper(packet.Header.Domain)
+		packet.Header.Hostname = strings.ToUpper(packet.Header.Hostname)
 
 		//Подключаемся
-		go s.receive(addr, message)
+		go s.receive(addr, packet)
 	}
 }
 
-func (s *Server) receive(addr *net.UDPAddr, uep *protocol.UEP) {
+func (s *Server) receive(addr *net.UDPAddr, packet *protocol.Packet) {
 
 	//Возвращаем подключение по имени компа
-	v, ok := s.Connections.Load(uep.Header.Hostname)
+	v, ok := s.Connections.Load(packet.Header.Hostname)
 	if !ok {
 		//Создаем и добавляем подключение
-		s.Connections.Store(uep.Header.Hostname, s.newConnection(addr, uep.Header))
+		s.Connections.Store(packet.Header.Hostname, s.newConnection(addr, packet.Header))
 		return
 	}
 	connection := v.(*Connection)
 
 	//Обновляем данные по подключению
-	if connection.updated(addr, uep.Header) {
+	if connection.updated(addr, packet.Header) {
 		go s.handleConnected(connection)
 	}
 
+	resp := protocol.NewResponse(packet.Request, packet.Header.Event)
+
 	//Проверяем события
-	switch uep.Header.Event {
+	switch packet.Header.Event {
 	//Отправляем команду о подключении клиенту
 	case protocol.EventConnected:
 		//событие подключения клиента
-		s.handleConnected(connection)
+		resp.OK(nil)
+		err := s.handleConnected(connection)
+		if err != nil {
+			resp.Error([]byte(err.Error()))
+		}
 		//отпраляем клиенту ответ
-		go connection.send(uep.Response)
+		go connection.Send(resp)
 		//response.OK(r.Header.Hostname, nil)
-		break
+		return
 	//Команда на отключение клиента
 	case protocol.EventDisconnect:
 		//удаляем подключения из списка
 		connection.disconnect()
+		//событие отключения клиента
+		resp.OK(nil)
+		err := s.handleDisconnected(connection)
+		if err != nil {
+			resp.Error([]byte(err.Error()))
+		}
 		//отпраляем клиенту ответ
-		go connection.send(uep.Response)
-		break
-	default:
-
+		go connection.Send(resp)
+		return
 	}
 
-	if uep.Request != nil {
+	if packet.Request != nil {
 		//Если есть данные с прицепом, то что то с ними делаем...
-		s.handleFuncRoute(uep)
+		s.handleFuncRoute(connection, resp, *packet.Request)
 	}
 }
 
 func (s *Server) SetRoute(route string, handler FuncHandler) {
-	s.router.Store(route, handler)
+	s.Router.Store(route, handler)
 }
 
-func (s *Server) handleFuncRoute(uep *protocol.UEP) {
-	v, ok := s.router.Load(uep.Header.Hostname)
+func (s *Server) handleFuncRoute(c *Connection, resp protocol.IResponse, req protocol.Request) {
+	v, ok := s.Router.Load(req.Route)
 	if !ok {
-		go v.(FuncHandler)(uep.Response, *uep.Request)
+		go v.(FuncHandler)(c, resp, req)
 	}
 }
 
-/*
-func (s *Server) saveConnection(c *Connection) {
-	s.handleSaveConnection(
-		c.Hostname,
-		c.IpAddress.IP.String(),
-		c.Login,
-		c.Domain,
-		c.Version,
-		c.flagConnected,
-		c.ConnectTime,
-		c.DisconnectTime)
-}*/
-
-/*
-func SendByLogin(login string, response *Response) (n int, err error) {
-	chLength := make(chan int)
-	chErr := make(chan error, 1)
-	go func() {
-		connections := srv.Connections.Find("Login", strings.ToLower(login))
-		for _, connection := range connections {
-			err := send(connection.Hostname, response)
-			if err != nil {
-				chLength <- 0
-				chErr <- err
-				return
-			}
-		}
-		chLength <- len(connections)
-		chErr <- nil
-	}()
-	return <-chLength, <-chErr
+func (s *Server) HandleConnected(handler HandleConnected) {
+	s.handleConnected = handler
 }
 
-func (s *server) SendByHostname(hostname string, response *Response) (err error) {
-	chErr := make(chan error)
-	go func() {
-		err := s.send(hostname, response)
-		if err != nil {
-			chErr <- err
-			return
-		}
-		chErr <- nil
-	}()
-	return <-chErr
-}*/
+func (s *Server) HandleDisconnected(handler HandleDisconnected) {
+	s.handleDisconnected = handler
+}
 
 func (s *Server) Send(hostname string, response *protocol.Response) (n int, err error) {
 
@@ -268,5 +226,21 @@ func (s *Server) Send(hostname string, response *protocol.Response) (n int, err 
 
 	connection := v.(*Connection)
 
-	return connection.send(response)
+	return connection.Send(response)
+}
+
+func (s *Server) GetConnections() (connections map[string]*Connection) {
+	s.Connections.Range(func(key, value interface{}) bool {
+		connections[key.(string)] = value.(*Connection)
+		return true
+	})
+	return
+}
+
+func (s *Server) GetRoutes() (routes []string) {
+	s.Connections.Range(func(key, value interface{}) bool {
+		routes = append(routes, key.(string))
+		return true
+	})
+	return
 }

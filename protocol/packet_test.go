@@ -7,7 +7,7 @@ import (
 )
 
 func TestUnmarshal(t *testing.T) {
-	p1 := UEP{
+	p1 := Packet{
 		Header: Header{
 			Hostname: "GB1-DIT-1-16146",
 			Login:    "govorukhin_35893",
@@ -15,29 +15,30 @@ func TestUnmarshal(t *testing.T) {
 			Version:  "3.3.6",
 			Event:    EventDisconnect,
 		},
-		Body:   &Request{
-			Route:  "example",
-			Id:     "123456",
-			Method: MethodSet,
-			Type:   "json",
-			Data:   []byte(`{"message": "Hello, world!"}`),
+		Request: &Request{
+			Route:       "example",
+			Id:          "123456",
+			Method:      MethodSet,
+			ContentType: "json",
+			Data:        []byte(`{"message": "Hello, world!"}`),
 		},
 	}
 	b := p1.Marshal()
 	fmt.Println(b)
 
-	p, err := Unmarshal(b)
+	p := new(Packet)
+	err := p.Unmarshal(b)
 	if err != nil {
 		t.Error(err)
 	}
 	fmt.Println(p)
 
-	if p.Body.Type == "json" {
+	if p.Request.ContentType == "json" {
 		type Data struct {
 			Message string `json:"message"`
 		}
 		data := Data{}
-		err = json.Unmarshal(p.Body.Data, &data)
+		err = json.Unmarshal(p.Request.Data, &data)
 		if err != nil {
 			t.Error(err)
 		}

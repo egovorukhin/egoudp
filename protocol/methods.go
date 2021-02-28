@@ -10,17 +10,18 @@ const (
 	MethodSet
 )
 
-func (m *Methods) unmarshal(s string) {
+func ToMethod(s string) Methods {
 	var method Methods
 	switch s {
-	case "0":
+	case "1":
 		method = MethodGet
 		break
-	case "1": method = MethodSet
+	case "2":
+		method = MethodSet
 	default:
 		method = MethodNone
 	}
-	m = &method
+	return method
 }
 
 func (m Methods) String() string {

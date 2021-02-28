@@ -10,19 +10,19 @@ const (
 	EventDisconnect
 )
 
-func (e *Events) unmarshal(s string) {
+func ToEvent(s string) Events {
 	var event Events
 	switch s {
-	case "0":
+	case "1":
 		event = EventConnected
 		break
-	case "1":
+	case "2":
 		event = EventDisconnect
 		break
 	default:
 		event = EventNone
 	}
-	e = &event
+	return event
 }
 
 func (e Events) String() string {

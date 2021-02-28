@@ -1,13 +1,12 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/egovorukhin/egoudp/protocol"
 	"net"
 	"strings"
 	"sync"
 	"time"
-	"udpserver/protocol"
 )
 
 type Connection struct {
@@ -84,19 +83,13 @@ func (c *Connection) disconnect() {
 	c.server.handleDisconnected(c)
 }
 
-func (c *Connection) send(response *protocol.Response) (n int, err error) {
-
-	//Сериализуем данные в json
-	sendMessage, err := json.Marshal(response)
-	if err != nil {
-		return
-	}
+func (c *Connection) Send(response protocol.IResponse) (n int, err error) {
 
 	//Запускаем отправку
 	remoteAddr, err := net.ResolveUDPAddr(Udp4, c.IpAddress.String())
 	if err != nil {
 		return
-		//logger.Save("server", "send", err.Error())
+		//logger.Save("server", "Send", err.Error())
 	}
 	conn, err := net.DialUDP(Udp4, nil, remoteAddr)
 	if err != nil {
@@ -105,7 +98,7 @@ func (c *Connection) send(response *protocol.Response) (n int, err error) {
 
 	defer conn.Close()
 
-	n, err = conn.Write(sendMessage)
+	n, err = conn.Write(response.Marshal())
 	if err != nil {
 		return
 	}

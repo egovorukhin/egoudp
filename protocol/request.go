@@ -3,17 +3,34 @@ package protocol
 import "fmt"
 
 type Request struct {
-	Route  string
-	Id     string  `eup:"id"`
-	Method Methods `eup:"method"`
-	Type   string  `eup:"type"`
-	Data   []byte  `eup:"data,omitempty"`
+	Route       string
+	Id          string
+	Method      Methods
+	ContentType string
+	Data        []byte
 }
 
-func (body *Request) String() string {
-	data := "null"
-	if body.Data != nil {
-		data = fmt.Sprintf("%v", body.Data)
+type IRequest interface {
+	SetData(contentType string, data []byte) *Request
+}
+
+func NewRequest(route string, method Methods) IRequest {
+	return &Request{
+		Route:  route,
+		Method: method,
 	}
-	return fmt.Sprintf("id: %s, method: %s, type: %s, data: %s", body.Id, body.Method.String(), body.Type, data)
+}
+
+func (r *Request) SetData(contentType string, data []byte) *Request {
+	r.ContentType = contentType
+	r.Data = data
+	return r
+}
+
+func (r *Request) String() string {
+	data := "null"
+	if r.Data != nil {
+		data = fmt.Sprintf("%v", r.Data)
+	}
+	return fmt.Sprintf("Id: %s, method: %s, type: %s, data: %s", r.Id, r.Method.String(), r.ContentType, data)
 }
