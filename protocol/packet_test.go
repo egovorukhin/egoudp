@@ -9,8 +9,8 @@ import (
 func TestUnmarshal(t *testing.T) {
 	p1 := Packet{
 		Header: Header{
-			Hostname: "GB1-DIT-1-16146",
-			Login:    "govorukhin_35893",
+			Hostname: "Computer",
+			Login:    "user",
 			Domain:   "HQ",
 			Version:  "3.3.6",
 			Event:    EventDisconnect,

@@ -51,21 +51,12 @@ func (c *Connection) updated(addr *net.UDPAddr, header protocol.Header) bool {
 		c.Domain = header.Domain
 		c.Login = header.Login
 		c.Version = header.Version
-		/*if err := c.SetUDPConn(addr); err != nil {
-			return false
-		}*/
 
 		return true
 	}
 
 	return false
 }
-
-/*
-func (c *Connection) SetUDPConn(addr *net.UDPAddr) (err error) {
-	c.UDPConn, err = net.DialUDP(udp, addr, addr)
-	return
-}*/
 
 func (c *Connection) Equals(header protocol.Header) bool {
 	if c.Hostname != header.Hostname ||

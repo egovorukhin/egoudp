@@ -117,7 +117,6 @@ func (c *Client) send() {
 
 		time.Sleep(time.Second * 1)
 	}
-
 }
 
 func (c *Client) receive() {
@@ -192,7 +191,7 @@ func (c *Client) Send(req *protocol.Request) *protocol.Response {
 
 func (c *Client) wait(id string, resp chan *protocol.Response) {
 
-	resp <- nil
+	//resp <- nil
 
 	i := 0
 	go func() {
@@ -216,6 +215,7 @@ func (c *Client) wait(id string, resp chan *protocol.Response) {
 			return received
 		})
 		if received {
+			c.queue.Delete(id)
 			return
 		}
 	}

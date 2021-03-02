@@ -11,7 +11,7 @@ import (
 
 func main() {
 	config := client.Config{
-		RemoteHost: "10.28.0.73",
+		RemoteHost: "localhost",
 		//LocalPort:  5656,
 		RemotePort: 5655,
 		BufferSize: 4096,

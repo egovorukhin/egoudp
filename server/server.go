@@ -43,7 +43,7 @@ type IServer interface {
 	GetRoutes() []string
 	Start() error
 	Stop() error
-	Send(string, *protocol.Response) (int, error)
+	Send(route string, resp *protocol.Response) (int, error)
 	SetRoute(string, FuncHandler)
 	HandleConnected(handler HandleConnected)
 	HandleDisconnected(handler HandleDisconnected)
@@ -109,10 +109,6 @@ func (s *Server) newConnection(addr *net.UDPAddr, header protocol.Header) *Conne
 		flagConnected:  true,
 		ticker:         nil,
 	}
-	/*
-		if err := connection.SetUDPConn(addr); err != nil {
-			return nil
-		}*/
 
 	//Запускаем таймер который будет удалять
 	//коннект при отсутствии прилетающих пакетов
@@ -146,46 +142,56 @@ func (s *Server) handleBufferParse(addr *net.UDPAddr, buffer []byte) {
 
 func (s *Server) receive(addr *net.UDPAddr, packet *protocol.Packet) {
 
-	//Возвращаем подключение по имени компа
-	v, ok := s.Connections.Load(packet.Header.Hostname)
-	if !ok {
-		//Создаем и добавляем подключение
-		s.Connections.Store(packet.Header.Hostname, s.newConnection(addr, packet.Header))
-		return
-	}
-	connection := v.(*Connection)
-
-	//Обновляем данные по подключению
-	if connection.updated(addr, packet.Header) {
-		go s.handleConnected(connection)
-	}
-
+	//Инициализируем ответ
 	resp := protocol.NewResponse(packet.Request, packet.Header.Event)
+	//Установка/проверка подключения
+	conn := s.setConnection(addr, packet)
 
 	//Проверяем события
 	switch packet.Header.Event {
 	//Отправляем команду о подключении клиенту
 	case protocol.EventConnected:
 		//событие подключения клиента
-		s.handleConnected(connection)
+		s.handleConnected(conn)
 		//отпраляем клиенту ответ
-		go connection.Send(resp.OK(nil))
+		go conn.Send(resp.OK(nil))
 		return
 	//Команда на отключение клиента
 	case protocol.EventDisconnect:
 		//удаляем подключения из списка
-		connection.disconnect()
+		conn.disconnect()
 		//событие отключения клиента
-		s.handleDisconnected(connection)
+		s.handleDisconnected(conn)
 		//отпраляем клиенту ответ
-		//go connection.Send(resp.OK(nil))
 		return
 	}
 
 	if packet.Request != nil {
 		//Если есть данные с прицепом, то что то с ними делаем...
-		s.handleFuncRoute(connection, resp, *packet.Request)
+		s.handleFuncRoute(conn, resp, *packet.Request)
 	}
+}
+
+func (s *Server) setConnection(addr *net.UDPAddr, packet *protocol.Packet) (conn *Connection) {
+	//Возвращаем подключение по имени компа
+	v, ok := s.Connections.Load(packet.Header.Hostname)
+	if !ok {
+		//Создаем и добавляем подключение
+		conn = s.newConnection(addr, packet.Header)
+		s.Connections.Store(packet.Header.Hostname, conn)
+		packet.Header.Event = protocol.EventConnected
+		return conn
+	}
+	//Приводим значение из списка к Connection
+	conn = v.(*Connection)
+
+	//Если пришли немного отличающиеся данные,
+	//то обновляем данные по подключению
+	if conn.updated(addr, packet.Header) {
+		packet.Header.Event = protocol.EventConnected
+	}
+
+	return conn
 }
 
 func (s *Server) SetRoute(route string, handler FuncHandler) {
