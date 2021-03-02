@@ -122,13 +122,13 @@ func (c *Client) send() {
 
 func (c *Client) receive() {
 
+	buffer := make([]byte, c.BufferSize)
+
 	for {
 
 		if !c.Started {
 			break
 		}
-
-		buffer := make([]byte, c.BufferSize)
 
 		n, addr, err := c.ReadFromUDP(buffer)
 		if err != nil {
@@ -179,7 +179,8 @@ func (c *Client) handleBufferParse(addr *net.UDPAddr, buffer []byte) {
 }
 
 func (c *Client) Send(req *protocol.Request) *protocol.Response {
-	c.queue.Store(c.id(), &Item{
+	req.Id = c.id()
+	c.queue.Store(req.Id, &Item{
 		Request: req,
 	})
 

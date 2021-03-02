@@ -18,7 +18,7 @@ type HandleConnected func(c *Connection)
 type HandleDisconnected func(c *Connection)
 
 //Функция которая вызывается при событии получения определённого маршоута
-type FuncHandler func(c *Connection, resp *protocol.Response, req protocol.Request)
+type FuncHandler func(c *Connection, resp protocol.IResponse, req protocol.Request)
 
 type Server struct {
 	Connections sync.Map //*Connections
@@ -192,7 +192,7 @@ func (s *Server) SetRoute(route string, handler FuncHandler) {
 	s.Router.Store(route, handler)
 }
 
-func (s *Server) handleFuncRoute(c *Connection, resp *protocol.Response, req protocol.Request) {
+func (s *Server) handleFuncRoute(c *Connection, resp protocol.IResponse, req protocol.Request) {
 	v, ok := s.Router.Load(req.Route)
 	if ok {
 		go v.(FuncHandler)(c, resp, req)
