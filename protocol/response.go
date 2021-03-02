@@ -23,7 +23,7 @@ type IResponse interface {
 	Unmarshal(b []byte) error
 }
 
-func NewResponse(req *Request, event Events) IResponse {
+func NewResponse(req *Request, event Events) *Response {
 	resp := &Response{
 		Event: event,
 	}

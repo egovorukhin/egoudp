@@ -63,7 +63,7 @@ func (c *Connection) updated(addr *net.UDPAddr, header protocol.Header) bool {
 
 /*
 func (c *Connection) SetUDPConn(addr *net.UDPAddr) (err error) {
-	c.UDPConn, err = net.DialUDP(Udp4, addr, addr)
+	c.UDPConn, err = net.DialUDP(udp, addr, addr)
 	return
 }*/
 

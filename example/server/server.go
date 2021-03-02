@@ -18,13 +18,7 @@ func main() {
 	udpserver := server.NewServer(config)
 	udpserver.HandleConnected(OnConnected)
 	udpserver.HandleDisconnected(OnDisconnected)
-	udpserver.SetRoute("hi", func(c *server.Connection, resp protocol.IResponse, req protocol.Request) {
-		resp.SetData(req.Data) //[]byte(`{"message": "Hello, world!"}`)
-		_, err := c.Send(resp)
-		if err != nil {
-			fmt.Println(err)
-		}
-	})
+	udpserver.SetRoute("hi", Hi)
 
 	for {
 		var input string
@@ -61,4 +55,13 @@ func OnConnected(c *server.Connection) {
 
 func OnDisconnected(c *server.Connection) {
 	fmt.Printf("Disconnected: %s(%s) - %s\n", c.Hostname, c.IpAddress.String(), c.ConnectTime.Format("15:04:05"))
+}
+
+func Hi(c *server.Connection, resp protocol.IResponse, req protocol.Request) {
+	resp.SetData(req.Data)
+	fmt.Println(string(req.Data))
+	_, err := c.Send(resp)
+	if err != nil {
+		fmt.Println(err)
+	}
 }

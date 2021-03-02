@@ -82,27 +82,27 @@ func (p *Packet) Unmarshal(b []byte) error {
 	}
 	var err error
 	//1. hostname
-	p.Header.Hostname, b, err = p.findField(b[1:])
+	p.Header.Hostname, b, err = findField(b[1:])
 	if err != nil {
 		return err
 	}
 	//2. login
-	p.Header.Login, b, err = p.findField(b)
+	p.Header.Login, b, err = findField(b)
 	if err != nil {
 		return err
 	}
 	//3. domain
-	p.Header.Domain, b, err = p.findField(b)
+	p.Header.Domain, b, err = findField(b)
 	if err != nil {
 		return err
 	}
 	//4. version client
-	p.Header.Version, b, err = p.findField(b)
+	p.Header.Version, b, err = findField(b)
 	if err != nil {
 		return err
 	}
 	//5. event
-	event, b, err := p.findField(b)
+	event, b, err := findField(b)
 	if err != nil {
 		return err
 	}
@@ -114,28 +114,28 @@ func (p *Packet) Unmarshal(b []byte) error {
 		req := new(Request)
 
 		//1. route
-		req.Route, b, err = p.findField(b[1:])
+		req.Route, b, err = findField(b[1:])
 		if err != nil {
 			return err
 		}
 		//2. Id
-		req.Id, b, err = p.findField(b)
+		req.Id, b, err = findField(b)
 		if err != nil {
 			return err
 		}
 		//3. method
-		method, b, err := p.findField(b)
+		method, b, err := findField(b)
 		if err != nil {
 			return err
 		}
 		req.Method = ToMethod(method)
 		//4. type
-		req.ContentType, b, err = p.findField(b)
+		req.ContentType, b, err = findField(b)
 		if err != nil {
 			return err
 		}
 		//4. data
-		data, b, err := p.findField(b)
+		data, b, err := findField(b)
 		if err != nil {
 			return err
 		}
@@ -147,7 +147,7 @@ func (p *Packet) Unmarshal(b []byte) error {
 	return nil
 }
 
-func (p *Packet) findField(b []byte) (string, []byte, error) {
+func findField(b []byte) (string, []byte, error) {
 	for i, value := range b {
 		if value == ':' {
 			n, err := strconv.Atoi(string(b[:i]))

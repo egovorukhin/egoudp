@@ -50,7 +50,7 @@ type IClient interface {
 	HandleDisconnected(handler HandleDisconnected)
 }
 
-const Udp4 = "udp4"
+const udp = "udp"
 
 func NewClient(config Config) IClient {
 	return &Client{
@@ -60,17 +60,17 @@ func NewClient(config Config) IClient {
 
 func (c *Client) Start(hostname, login, domain, version string) error {
 
-	remoteAdder, err := net.ResolveUDPAddr(Udp4, fmt.Sprintf("%s:%d", c.RemoteHost, c.RemotePort))
+	remoteAdder, err := net.ResolveUDPAddr(udp, fmt.Sprintf("%s:%d", c.RemoteHost, c.RemotePort))
 	if err != nil {
 		return err
 	}
 
-	localAddr, err := net.ResolveUDPAddr(Udp4, ":"+strconv.Itoa(c.LocalPort))
+	localAddr, err := net.ResolveUDPAddr(udp, ":"+strconv.Itoa(c.LocalPort))
 	if err != nil {
 		return err
 	}
 
-	c.UDPConn, err = net.DialUDP(Udp4, localAddr, remoteAdder)
+	c.UDPConn, err = net.DialUDP(udp, localAddr, remoteAdder)
 	if err != nil {
 		return err
 	}
@@ -169,16 +169,13 @@ func (c *Client) handleBufferParse(addr *net.UDPAddr, buffer []byte) {
 		return
 	}
 
-	go func(resp *protocol.Response) {
-		c.queue.Range(func(key, value interface{}) bool {
-			if key == resp.Id {
-				value.(*Item).Response = resp
-				value.(*Item).received = true
-				return true
-			}
-			return false
-		})
-	}(resp)
+	go func() {
+		v, ok := c.queue.Load(resp.Id)
+		if ok {
+			v.(*Item).Response = resp
+			v.(*Item).received = true
+		}
+	}()
 }
 
 func (c *Client) Send(req *protocol.Request) *protocol.Response {

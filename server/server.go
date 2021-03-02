@@ -11,14 +11,14 @@ import (
 	"time"
 )
 
-const Udp4 = "udp4"
+const udp = "udp"
 
 //События
 type HandleConnected func(c *Connection)
 type HandleDisconnected func(c *Connection)
 
 //Функция которая вызывается при событии получения определённого маршоута
-type FuncHandler func(c *Connection, resp protocol.IResponse, req protocol.Request)
+type FuncHandler func(c *Connection, resp *protocol.Response, req protocol.Request)
 
 type Server struct {
 	Connections sync.Map //*Connections
@@ -59,12 +59,12 @@ func NewServer(config Config) IServer {
 
 func (s *Server) Start() (err error) {
 
-	localAddr, err := net.ResolveUDPAddr(Udp4, ":"+strconv.Itoa(s.Config.LocalPort))
+	localAddr, err := net.ResolveUDPAddr(udp, ":"+strconv.Itoa(s.Config.LocalPort))
 	if err != nil {
 		return err
 	}
 
-	s.listener, err = net.ListenUDP(Udp4, localAddr)
+	s.listener, err = net.ListenUDP(udp, localAddr)
 	if err != nil {
 		return err
 	}
@@ -192,9 +192,9 @@ func (s *Server) SetRoute(route string, handler FuncHandler) {
 	s.Router.Store(route, handler)
 }
 
-func (s *Server) handleFuncRoute(c *Connection, resp protocol.IResponse, req protocol.Request) {
+func (s *Server) handleFuncRoute(c *Connection, resp *protocol.Response, req protocol.Request) {
 	v, ok := s.Router.Load(req.Route)
-	if !ok {
+	if ok {
 		go v.(FuncHandler)(c, resp, req)
 	}
 }
