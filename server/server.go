@@ -14,8 +14,8 @@ import (
 const Udp4 = "udp4"
 
 //События
-type HandleConnected func(c *Connection) error
-type HandleDisconnected func(c *Connection) error
+type HandleConnected func(c *Connection)
+type HandleDisconnected func(c *Connection)
 
 //Функция которая вызывается при событии получения определённого маршоута
 type FuncHandler func(c *Connection, resp protocol.IResponse, req protocol.Request)
@@ -32,8 +32,8 @@ type Server struct {
 }
 
 type Config struct {
-	LocalPort         int
-	RemotePort        int
+	LocalPort int
+	//RemotePort        int
 	BufferSize        int
 	DisconnectTimeOut int
 }
@@ -94,29 +94,29 @@ func (s *Server) Start() (err error) {
 	return
 }
 
-func (s *Server) Stop() error {
-	s.Started = false
-	return s.listener.Close()
-}
-
 func (s *Server) newConnection(addr *net.UDPAddr, header protocol.Header) *Connection {
 
 	connection := &Connection{
-		server:        s,
-		Hostname:      header.Hostname,
-		IpAddress:     addr,
-		Domain:        header.Domain,
-		Login:         header.Login,
-		ConnectTime:   time.Now(),
-		Version:       header.Version,
-		flagConnected: true,
+		Server:         s,
+		Hostname:       header.Hostname,
+		IpAddress:      addr,
+		Domain:         header.Domain,
+		Login:          header.Login,
+		ConnectTime:    time.Now(),
+		DisconnectTime: nil,
+		Version:        header.Version,
+		RWMutex:        sync.RWMutex{},
+		flagConnected:  true,
+		ticker:         nil,
 	}
+	/*
+		if err := connection.SetUDPConn(addr); err != nil {
+			return nil
+		}*/
 
 	//Запускаем таймер который будет удалять
 	//коннект при отсутствии прилетающих пакетов
 	go connection.startTimer(s.Config.DisconnectTimeOut)
-
-	//go s.saveConnection(connection)
 
 	return connection
 }
@@ -167,27 +167,18 @@ func (s *Server) receive(addr *net.UDPAddr, packet *protocol.Packet) {
 	//Отправляем команду о подключении клиенту
 	case protocol.EventConnected:
 		//событие подключения клиента
-		resp.OK(nil)
-		err := s.handleConnected(connection)
-		if err != nil {
-			resp.Error([]byte(err.Error()))
-		}
+		s.handleConnected(connection)
 		//отпраляем клиенту ответ
-		go connection.Send(resp)
-		//response.OK(r.Header.Hostname, nil)
+		go connection.Send(resp.OK(nil))
 		return
 	//Команда на отключение клиента
 	case protocol.EventDisconnect:
 		//удаляем подключения из списка
 		connection.disconnect()
 		//событие отключения клиента
-		resp.OK(nil)
-		err := s.handleDisconnected(connection)
-		if err != nil {
-			resp.Error([]byte(err.Error()))
-		}
+		s.handleDisconnected(connection)
 		//отпраляем клиенту ответ
-		go connection.Send(resp)
+		//go connection.Send(resp.OK(nil))
 		return
 	}
 
@@ -243,4 +234,9 @@ func (s *Server) GetRoutes() (routes []string) {
 		return true
 	})
 	return
+}
+
+func (s *Server) Stop() error {
+	s.Started = false
+	return s.listener.Close()
 }

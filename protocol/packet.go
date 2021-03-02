@@ -46,19 +46,19 @@ func NewUEP(hostname, login, domain, version string) *Packet {
 	}
 }
 
-func (r *Packet) Marshal() (b []byte) {
+func (p *Packet) Marshal() (b []byte) {
 	buf := bytes.NewBuffer(b)
 	buf.Write([]byte(string(startChar)))
 	//header
-	header := r.Header
+	header := p.Header
 	buf.Write([]byte(fmt.Sprintf("%d:%s", len(header.Hostname), header.Hostname)))
 	buf.Write([]byte(fmt.Sprintf("%d:%s", len(header.Login), header.Login)))
 	buf.Write([]byte(fmt.Sprintf("%d:%s", len(header.Domain), header.Domain)))
 	buf.Write([]byte(fmt.Sprintf("%d:%s", len(header.Version), header.Version)))
 	buf.Write([]byte(fmt.Sprintf("1:%d", header.Event)))
 	//bodyChar
-	if r.Request != nil {
-		req := r.Request
+	if p.Request != nil {
+		req := p.Request
 		buf.Write([]byte(string(bodyChar)))
 		buf.Write([]byte(fmt.Sprintf("%d:%s", len(req.Route), req.Route)))
 		buf.Write([]byte(fmt.Sprintf("%d:%s", len(req.Id), req.Id)))
@@ -72,7 +72,7 @@ func (r *Packet) Marshal() (b []byte) {
 
 }
 
-func (r *Packet) Unmarshal(b []byte) error {
+func (p *Packet) Unmarshal(b []byte) error {
 
 	if b[0] != startChar {
 		return errors.New(fmt.Sprintf("Первый символ должен быть - %v", startChar))
@@ -82,31 +82,31 @@ func (r *Packet) Unmarshal(b []byte) error {
 	}
 	var err error
 	//1. hostname
-	r.Header.Hostname, b, err = findField(b[1:])
+	p.Header.Hostname, b, err = p.findField(b[1:])
 	if err != nil {
 		return err
 	}
 	//2. login
-	r.Header.Login, b, err = findField(b)
+	p.Header.Login, b, err = p.findField(b)
 	if err != nil {
 		return err
 	}
 	//3. domain
-	r.Header.Domain, b, err = findField(b)
+	p.Header.Domain, b, err = p.findField(b)
 	if err != nil {
 		return err
 	}
 	//4. version client
-	r.Header.Version, b, err = findField(b)
+	p.Header.Version, b, err = p.findField(b)
 	if err != nil {
 		return err
 	}
 	//5. event
-	event, b, err := findField(b)
+	event, b, err := p.findField(b)
 	if err != nil {
 		return err
 	}
-	r.Header.Event = ToEvent(event)
+	p.Header.Event = ToEvent(event)
 
 	//body
 	if b[0] == bodyChar {
@@ -114,40 +114,40 @@ func (r *Packet) Unmarshal(b []byte) error {
 		req := new(Request)
 
 		//1. route
-		req.Route, b, err = findField(b[1:])
+		req.Route, b, err = p.findField(b[1:])
 		if err != nil {
 			return err
 		}
 		//2. Id
-		req.Id, b, err = findField(b)
+		req.Id, b, err = p.findField(b)
 		if err != nil {
 			return err
 		}
 		//3. method
-		method, b, err := findField(b)
+		method, b, err := p.findField(b)
 		if err != nil {
 			return err
 		}
 		req.Method = ToMethod(method)
 		//4. type
-		req.ContentType, b, err = findField(b)
+		req.ContentType, b, err = p.findField(b)
 		if err != nil {
 			return err
 		}
 		//4. data
-		data, b, err := findField(b)
+		data, b, err := p.findField(b)
 		if err != nil {
 			return err
 		}
 		req.Data = []byte(data)
 
-		r.Request = req
+		p.Request = req
 	}
 
 	return nil
 }
 
-func findField(b []byte) (string, []byte, error) {
+func (p *Packet) findField(b []byte) (string, []byte, error) {
 	for i, value := range b {
 		if value == ':' {
 			n, err := strconv.Atoi(string(b[:i]))
@@ -160,14 +160,14 @@ func findField(b []byte) (string, []byte, error) {
 	return "", b, errors.New("Не удалось определить поле. Формат должен быть вида - n:word")
 }
 
-func (r *Packet) String() string {
+func (p *Packet) String() string {
 	req := "null"
-	if r.Request != nil {
-		req = fmt.Sprintf("{%s}", r.Request.String())
+	if p.Request != nil {
+		req = fmt.Sprintf("{%s}", p.Request.String())
 	}
 	/*resp := "null"
-	if r.Response != nil {
-		resp = fmt.Sprintf("{%s}", r.Response.String())
+	if p.Response != nil {
+		resp = fmt.Sprintf("{%s}", p.Response.String())
 	}*/
-	return fmt.Sprintf("header: {%s}, request: %s", r.Header.String(), req)
+	return fmt.Sprintf("header: {%s}, request: %s", p.Header.String(), req)
 }

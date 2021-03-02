@@ -23,11 +23,11 @@ type HandleConnected func(c *Client)
 type HandleDisconnected func(c *Client)
 
 type Client struct {
-	Config             Config
-	sender             *net.UDPConn
-	listener           *net.UDPConn
-	Started            bool
-	Connected          bool
+	Config
+	*net.UDPConn
+	Started   bool
+	Connected bool
+	sync.RWMutex
 	packet             *protocol.Packet
 	queue              sync.Map
 	handleConnected    HandleConnected
@@ -35,8 +35,9 @@ type Client struct {
 }
 
 type Config struct {
-	LocalPort  int
+	RemoteHost string
 	RemotePort int
+	LocalPort  int
 	BufferSize int
 	TimeOut    int
 }
@@ -59,22 +60,17 @@ func NewClient(config Config) IClient {
 
 func (c *Client) Start(hostname, login, domain, version string) error {
 
-	remoteAdder, err := net.ResolveUDPAddr(Udp4, ":"+strconv.Itoa(c.Config.RemotePort))
-	if err != nil {
-		return err
-	}
-	/*
-		localAddr, err := net.ResolveUDPAddr(Udp4, ":"+strconv.Itoa(c.Config.LocalPort))
-		if err != nil {
-			return err
-		}*/
-
-	c.sender, err = net.DialUDP(Udp4, nil, remoteAdder)
+	remoteAdder, err := net.ResolveUDPAddr(Udp4, fmt.Sprintf("%s:%d", c.RemoteHost, c.RemotePort))
 	if err != nil {
 		return err
 	}
 
-	c.listener, err = net.ListenUDP(Udp4, nil)
+	localAddr, err := net.ResolveUDPAddr(Udp4, ":"+strconv.Itoa(c.LocalPort))
+	if err != nil {
+		return err
+	}
+
+	c.UDPConn, err = net.DialUDP(Udp4, localAddr, remoteAdder)
 	if err != nil {
 		return err
 	}
@@ -103,16 +99,21 @@ func (c *Client) send() {
 		c.queue.Range(func(key, value interface{}) bool {
 			item := value.(*Item)
 			if !item.sended {
+				c.Lock()
 				c.packet.Request = item.Request
+				c.Unlock()
 				item.sended = true
 			}
+
 			return true
 		})
 
-		_, err := c.sender.Write(c.packet.Marshal())
+		_, err := c.Write(c.packet.Marshal())
 		if err != nil {
 			fmt.Println(err)
 		}
+
+		c.packet.Request = nil
 
 		time.Sleep(time.Second * 1)
 	}
@@ -127,9 +128,9 @@ func (c *Client) receive() {
 			break
 		}
 
-		buffer := make([]byte, c.Config.BufferSize)
+		buffer := make([]byte, c.BufferSize)
 
-		n, addr, err := c.listener.ReadFromUDP(buffer)
+		n, addr, err := c.ReadFromUDP(buffer)
 		if err != nil {
 			continue
 		}
@@ -153,21 +154,18 @@ func (c *Client) handleBufferParse(addr *net.UDPAddr, buffer []byte) {
 	case protocol.EventConnected:
 		//событие подключения клиента
 		c.Connected = true
+		c.Lock()
+		c.packet.Header.Event = protocol.EventNone
+		c.Unlock()
 		go c.handleConnected(c)
 		return
 	//Команда на отключение клиента
 	case protocol.EventDisconnect:
 		//событие отключения клиента
 		c.Connected = false
-		c.handleDisconnected(c)
-		err = c.sender.Close()
-		if err != nil {
-			fmt.Println(err)
-		}
-		err = c.listener.Close()
-		if err != nil {
-			fmt.Println(err)
-		}
+		c.Lock()
+		c.packet.Header.Event = protocol.EventNone
+		c.Unlock()
 		return
 	}
 
@@ -195,22 +193,34 @@ func (c *Client) Send(req *protocol.Request) *protocol.Response {
 }
 
 func (c *Client) wait(id string, resp chan *protocol.Response) {
-	//ticker := time.NewTicker(time.Duration(c.Config.TimeOut) * time.Second)
-	timer := time.NewTimer(1 * time.Second)
-	defer timer.Stop()
-	//go func() {
-	for range timer.C {
-		c.queue.Range(func(key, value interface{}) bool {
-			if key == id && value.(*Item).received {
 
-			}
-			return false
-		})
-
-		return
-	}
 	resp <- nil
-	//}()
+
+	i := 0
+	go func() {
+		for {
+			if i == c.TimeOut {
+				return
+			}
+			time.Sleep(1 * time.Second)
+			i++
+		}
+	}()
+
+	received := false
+	for i < c.TimeOut {
+		c.queue.Range(func(key, value interface{}) bool {
+			item := value.(*Item)
+			if key == id && item.received {
+				resp <- item.Response
+				received = true
+			}
+			return received
+		})
+		if received {
+			return
+		}
+	}
 }
 
 func (c *Client) id() string {
@@ -226,6 +236,17 @@ func (c *Client) HandleDisconnected(handler HandleDisconnected) {
 }
 
 func (c *Client) Stop() {
+	c.handleDisconnected(c)
+	err := c.Close()
+	if err != nil {
+		fmt.Println(err)
+	}
+	/*err = c.listener.Close()
+	if err != nil {
+		fmt.Println(err)
+	}*/
 	c.Started = false
+	c.Lock()
 	c.packet.Header.Event = protocol.EventDisconnect
+	c.Unlock()
 }

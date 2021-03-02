@@ -10,8 +10,8 @@ import (
 
 func main() {
 	config := server.Config{
-		LocalPort:         5655,
-		RemotePort:        5656,
+		LocalPort: 5655,
+		//RemotePort:        5656,
 		BufferSize:        4096,
 		DisconnectTimeOut: 5,
 	}
@@ -55,12 +55,10 @@ func main() {
 	}
 }
 
-func OnConnected(c *server.Connection) error {
+func OnConnected(c *server.Connection) {
 	fmt.Printf("Connected: %s(%s): %s\n", c.Hostname, c.IpAddress.String(), c.ConnectTime.Format("15:04:05"))
-	return nil
 }
 
-func OnDisconnected(c *server.Connection) error {
+func OnDisconnected(c *server.Connection) {
 	fmt.Printf("Disconnected: %s(%s) - %s\n", c.Hostname, c.IpAddress.String(), c.ConnectTime.Format("15:04:05"))
-	return nil
 }

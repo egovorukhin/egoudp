@@ -10,7 +10,7 @@ import (
 )
 
 type Connection struct {
-	server         *Server
+	*Server
 	Hostname       string
 	IpAddress      *net.UDPAddr
 	Domain         string
@@ -51,12 +51,21 @@ func (c *Connection) updated(addr *net.UDPAddr, header protocol.Header) bool {
 		c.Domain = header.Domain
 		c.Login = header.Login
 		c.Version = header.Version
+		/*if err := c.SetUDPConn(addr); err != nil {
+			return false
+		}*/
 
 		return true
 	}
 
 	return false
 }
+
+/*
+func (c *Connection) SetUDPConn(addr *net.UDPAddr) (err error) {
+	c.UDPConn, err = net.DialUDP(Udp4, addr, addr)
+	return
+}*/
 
 func (c *Connection) Equals(header protocol.Header) bool {
 	if c.Hostname != header.Hostname ||
@@ -73,37 +82,20 @@ func (c *Connection) disconnect() {
 		return
 	}
 	c.ticker.Stop()
+	c.Lock()
 	c.flagConnected = false
+	c.Unlock()
 	t := time.Now()
 	c.DisconnectTime = &t
-
+	//c.UDPConn.Close()
 	//Удаляем подключение из списка
-	c.server.deleteConnection(c.Hostname)
+	c.deleteConnection(c.Hostname)
 	//событие при отключении
-	c.server.handleDisconnected(c)
+	c.handleDisconnected(c)
 }
 
-func (c *Connection) Send(response protocol.IResponse) (n int, err error) {
-
-	//Запускаем отправку
-	remoteAddr, err := net.ResolveUDPAddr(Udp4, c.IpAddress.String())
-	if err != nil {
-		return
-		//logger.Save("server", "Send", err.Error())
-	}
-	conn, err := net.DialUDP(Udp4, nil, remoteAddr)
-	if err != nil {
-		return
-	}
-
-	defer conn.Close()
-
-	n, err = conn.Write(response.Marshal())
-	if err != nil {
-		return
-	}
-
-	return
+func (c *Connection) Send(resp protocol.IResponse) (int, error) {
+	return c.listener.WriteToUDP(resp.Marshal(), c.IpAddress)
 }
 
 func (c *Connection) String() string {
