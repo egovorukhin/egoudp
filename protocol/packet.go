@@ -34,7 +34,7 @@ const (
 	$-endChar
 */
 
-func NewUEP(hostname, login, domain, version string) *Packet {
+func New(hostname, login, domain, version string) *Packet {
 	return &Packet{
 		Header: Header{
 			Hostname: hostname,

@@ -87,7 +87,7 @@ func (c *Client) Start(hostname, login, domain, version string) error {
 		return err
 	}
 
-	c.packet = protocol.NewUEP(hostname, login, domain, version)
+	c.packet = protocol.New(hostname, login, domain, version)
 	c.packet.Header.Event = protocol.EventConnected
 
 	c.Started = true
