@@ -96,6 +96,8 @@ go get -u github.com/egovorukhin/egoudp
 
 * **Конфигурация**
 ```
+  import "github.com/egovorukhin/egoudp/client"
+
   config := client.Config{
           Host:       "localhost",
           Port:       5655,
@@ -148,8 +150,15 @@ go get -u github.com/egovorukhin/egoudp
 ```
 `NewRequest` - инициализация запроса. `SetData` - передаем вид данных и сами данные в `[]byte`. `Send(req *Request)` - отправка запроса на сервер, возвращает `*Response, error`.
 
+* **Логирование**
+```
+  f, _ := os.Open(path)
+  clt.SetLogger(f, "", log.Ldate|log.Ltime)
+```
+Можно переопределить `Writer` для `log.Logger`, по умолчанию вывод будет происходить на `os.Stdout`.
+
 * **Остановка**
 ```
-  _ = srv.Stop()
+  _ = clt.Stop()
 ```
 `Stop()` - остановка клиента, возвращает ошибку `error`.
