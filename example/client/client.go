@@ -19,9 +19,9 @@ func main() {
 		TimeOut:    30,
 		LogLevel:   0,
 	}
-	udpclient := client.NewClient(config)
-	udpclient.HandleConnected(OnConnected)
-	udpclient.HandleDisconnected(OnDisconnected)
+	clt := client.New(config)
+	clt.HandleConnected(OnConnected)
+	clt.HandleDisconnected(OnDisconnected)
 	hostname, err := os.Hostname()
 	if err != nil {
 		panic(err)
@@ -35,7 +35,7 @@ func main() {
 		}
 		switch strings.ToLower(input) {
 		case "start":
-			err = udpclient.Start(hostname, "login", "domain.com", "1.0.0")
+			err = clt.Start(hostname, "login", "domain.com", "1.0.0")
 			if err != nil {
 				fmt.Println(err)
 				break
@@ -43,7 +43,7 @@ func main() {
 			fmt.Println("Клиент запущен")
 			break
 		case "hi":
-			b, err := Hi(udpclient)
+			b, err := Hi(clt)
 			if err != nil {
 				fmt.Println(err)
 				break
@@ -52,7 +52,7 @@ func main() {
 			break
 		case "winter":
 			var w []string
-			err := Winter(udpclient, &w)
+			err := Winter(clt, &w)
 			if err != nil {
 				fmt.Println(err)
 				break
@@ -60,7 +60,7 @@ func main() {
 			fmt.Println(w)
 			break
 		case "stop":
-			err = udpclient.Stop()
+			err = clt.Stop()
 			if err != nil {
 				fmt.Println(err)
 				break

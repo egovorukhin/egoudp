@@ -15,11 +15,11 @@ func main() {
 		DisconnectTimeOut: 5,
 		LogLevel:          0,
 	}
-	udpserver := server.NewServer(config)
-	udpserver.HandleConnected(OnConnected)
-	udpserver.HandleDisconnected(OnDisconnected)
-	udpserver.SetRoute("hi", protocol.MethodNone, Hi)
-	udpserver.SetRoute("winter", protocol.MethodGet, Winter)
+	srv := server.New(config)
+	srv.HandleConnected(OnConnected)
+	srv.HandleDisconnected(OnDisconnected)
+	srv.SetRoute("hi", protocol.MethodNone, Hi)
+	srv.SetRoute("winter", protocol.MethodGet, Winter)
 
 	for {
 		var input string
@@ -29,7 +29,7 @@ func main() {
 		}
 		switch strings.ToLower(input) {
 		case "start":
-			err := udpserver.Start()
+			err := srv.Start()
 			if err != nil {
 				fmt.Println(err)
 				break
@@ -37,7 +37,7 @@ func main() {
 			fmt.Println("Сервер запущен")
 			break
 		case "stop":
-			err := udpserver.Stop()
+			err := srv.Stop()
 			if err != nil {
 				fmt.Println(err)
 				break

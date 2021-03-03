@@ -64,7 +64,7 @@ type IClient interface {
 
 const udp = "udp"
 
-func NewClient(config Config) IClient {
+func New(config Config) IClient {
 	return &Client{
 		Config: config,
 		Logger: log.New(os.Stdout, "", log.Ldate|log.Ltime),

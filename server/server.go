@@ -47,7 +47,8 @@ const (
 
 type IServer interface {
 	GetConnections() map[string]*Connection
-	GetRoutes() []string
+	GetRoutes() map[string]*Route
+	SetLogger(out io.Writer, prefix string, flag int)
 	Start() error
 	Stop() error
 	Send(route string, resp *protocol.Response) (int, error)
@@ -56,7 +57,7 @@ type IServer interface {
 	HandleDisconnected(handler HandleDisconnected)
 }
 
-func NewServer(config Config) IServer {
+func New(config Config) IServer {
 	return &Server{
 		Connections: sync.Map{},
 		Config:      config,
@@ -260,9 +261,9 @@ func (s *Server) GetConnections() (connections map[string]*Connection) {
 	return
 }
 
-func (s *Server) GetRoutes() (routes []string) {
+func (s *Server) GetRoutes() (routes map[string]*Route) {
 	s.Connections.Range(func(key, value interface{}) bool {
-		routes = append(routes, key.(string))
+		routes[key.(string)] = value.(*Route)
 		return true
 	})
 	return
