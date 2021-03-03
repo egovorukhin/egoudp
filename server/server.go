@@ -4,7 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"github.com/egovorukhin/egoudp/protocol"
+	"io"
+	"log"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,26 +20,30 @@ const udp = "udp"
 type HandleConnected func(c *Connection)
 type HandleDisconnected func(c *Connection)
 
-//Функция которая вызывается при событии получения определённого маршоута
-type FuncHandler func(c *Connection, resp protocol.IResponse, req protocol.Request)
-
 type Server struct {
 	Connections sync.Map //*Connections
 	listener    *net.UDPConn
-	Config      Config
-	Started     bool
-	Router      sync.Map
-	//handleSaveConnection HandleSaveConnection
+	*log.Logger
+	Config
+	Started            bool
+	Router             sync.Map
 	handleConnected    HandleConnected
 	handleDisconnected HandleDisconnected
 }
 
 type Config struct {
-	LocalPort int
-	//RemotePort        int
+	Port              int
 	BufferSize        int
 	DisconnectTimeOut int
+	LogLevel          LogLevel
 }
+
+type LogLevel int
+
+const (
+	LogLevelLow LogLevel = iota
+	LogLevelHigh
+)
 
 type IServer interface {
 	GetConnections() map[string]*Connection
@@ -44,7 +51,7 @@ type IServer interface {
 	Start() error
 	Stop() error
 	Send(route string, resp *protocol.Response) (int, error)
-	SetRoute(string, FuncHandler)
+	SetRoute(path string, method protocol.Methods, handler FuncHandler)
 	HandleConnected(handler HandleConnected)
 	HandleDisconnected(handler HandleDisconnected)
 }
@@ -54,12 +61,17 @@ func NewServer(config Config) IServer {
 		Connections: sync.Map{},
 		Config:      config,
 		Started:     false,
+		Logger:      log.New(os.Stdout, "", log.Ldate|log.Ltime),
 	}
+}
+
+func (s *Server) SetLogger(out io.Writer, prefix string, flag int) {
+	s.Logger = log.New(out, prefix, flag)
 }
 
 func (s *Server) Start() (err error) {
 
-	localAddr, err := net.ResolveUDPAddr(udp, ":"+strconv.Itoa(s.Config.LocalPort))
+	localAddr, err := net.ResolveUDPAddr(udp, ":"+strconv.Itoa(s.Port))
 	if err != nil {
 		return err
 	}
@@ -77,11 +89,16 @@ func (s *Server) Start() (err error) {
 				break
 			}
 
-			buffer := make([]byte, s.Config.BufferSize)
+			buffer := make([]byte, s.BufferSize)
 
 			n, addr, err := s.listener.ReadFromUDP(buffer)
 			if err != nil {
+				s.Println(err)
 				continue
+			}
+
+			if s.LogLevel == LogLevelHigh {
+				s.Println("%s(%d)", string(buffer[:n]), n)
 			}
 
 			//Передаем данные и разбираем их
@@ -112,7 +129,7 @@ func (s *Server) newConnection(addr *net.UDPAddr, header protocol.Header) *Conne
 
 	//Запускаем таймер который будет удалять
 	//коннект при отсутствии прилетающих пакетов
-	go connection.startTimer(s.Config.DisconnectTimeOut)
+	go connection.startTimer(s.DisconnectTimeOut)
 
 	return connection
 }
@@ -194,14 +211,23 @@ func (s *Server) setConnection(addr *net.UDPAddr, packet *protocol.Packet) (conn
 	return conn
 }
 
-func (s *Server) SetRoute(route string, handler FuncHandler) {
-	s.Router.Store(route, handler)
+func (s *Server) SetRoute(path string, method protocol.Methods, handler FuncHandler) {
+	s.Router.Store(path, &Route{
+		Path:    path,
+		Method:  method,
+		Handler: handler,
+	})
 }
 
 func (s *Server) handleFuncRoute(c *Connection, resp protocol.IResponse, req protocol.Request) {
-	v, ok := s.Router.Load(req.Route)
+	v, ok := s.Router.Load(req.Path)
 	if ok {
-		go v.(FuncHandler)(c, resp, req)
+		route := v.(*Route)
+		if route.Method != req.Method {
+			resp.Error([]byte(fmt.Sprintf("Метод запроса не соответствует маршруту [%s]", route.Path)))
+			return
+		}
+		go route.Handler(c, resp, req)
 	}
 }
 

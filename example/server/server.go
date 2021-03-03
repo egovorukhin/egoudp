@@ -10,15 +10,16 @@ import (
 
 func main() {
 	config := server.Config{
-		LocalPort: 5655,
-		//RemotePort:        5656,
+		Port:              5655,
 		BufferSize:        4096,
 		DisconnectTimeOut: 5,
+		LogLevel:          0,
 	}
 	udpserver := server.NewServer(config)
 	udpserver.HandleConnected(OnConnected)
 	udpserver.HandleDisconnected(OnDisconnected)
-	udpserver.SetRoute("hi", Hi)
+	udpserver.SetRoute("hi", protocol.MethodNone, Hi)
+	udpserver.SetRoute("winter", protocol.MethodGet, Winter)
 
 	for {
 		var input string
@@ -45,6 +46,8 @@ func main() {
 			break
 		case "exit":
 			os.Exit(0)
+		default:
+			fmt.Println("Неизвестная команда")
 		}
 	}
 }
@@ -60,6 +63,16 @@ func OnDisconnected(c *server.Connection) {
 func Hi(c *server.Connection, resp protocol.IResponse, req protocol.Request) {
 	resp.SetData(req.Data)
 	fmt.Println(string(req.Data))
+	_, err := c.Send(resp)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func Winter(c *server.Connection, resp protocol.IResponse, req protocol.Request) {
+	//JSON
+	data := `["Декабрь", "Январь", "Февраль"]`
+	resp = resp.SetData([]byte(data)).SetContentType("json")
 	_, err := c.Send(resp)
 	if err != nil {
 		fmt.Println(err)

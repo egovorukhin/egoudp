@@ -60,7 +60,7 @@ func (p *Packet) Marshal() (b []byte) {
 	if p.Request != nil {
 		req := p.Request
 		buf.Write([]byte(string(bodyChar)))
-		buf.Write([]byte(fmt.Sprintf("%d:%s", len(req.Route), req.Route)))
+		buf.Write([]byte(fmt.Sprintf("%d:%s", len(req.Path), req.Path)))
 		buf.Write([]byte(fmt.Sprintf("%d:%s", len(req.Id), req.Id)))
 		buf.Write([]byte(fmt.Sprintf("1:%d", req.Method)))
 		buf.Write([]byte(fmt.Sprintf("%d:%s", len(req.ContentType), req.ContentType)))
@@ -114,7 +114,7 @@ func (p *Packet) Unmarshal(b []byte) error {
 		req := new(Request)
 
 		//1. route
-		req.Route, b, err = findField(b[1:])
+		req.Path, b, err = findField(b[1:])
 		if err != nil {
 			return err
 		}

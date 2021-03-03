@@ -1,11 +1,13 @@
 package protocol
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type Request struct {
-	Route       string
-	Id          string
+	Path        string
 	Method      Methods
+	Id          string
 	ContentType string
 	Data        []byte
 }
@@ -14,9 +16,9 @@ type IRequest interface {
 	SetData(contentType string, data []byte) *Request
 }
 
-func NewRequest(route string, method Methods) IRequest {
+func NewRequest(path string, method Methods) *Request {
 	return &Request{
-		Route:  route,
+		Path:   path,
 		Method: method,
 	}
 }
@@ -32,5 +34,5 @@ func (r *Request) String() string {
 	if r.Data != nil {
 		data = fmt.Sprintf("%v", r.Data)
 	}
-	return fmt.Sprintf("Id: %s, method: %s, type: %s, data: %s", r.Id, r.Method.String(), r.ContentType, data)
+	return fmt.Sprintf("Id: %s, path: %s, method: %s, type: %s, data: %s", r.Id, r.Path, r.Method.String(), r.ContentType, data)
 }

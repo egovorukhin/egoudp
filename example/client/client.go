@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"github.com/egovorukhin/egoudp/client"
 	"github.com/egovorukhin/egoudp/protocol"
@@ -11,11 +13,11 @@ import (
 
 func main() {
 	config := client.Config{
-		RemoteHost: "localhost",
-		//LocalPort:  5656,
-		RemotePort: 5655,
+		Host:       "localhost",
+		Port:       5655,
 		BufferSize: 4096,
 		TimeOut:    30,
+		LogLevel:   0,
 	}
 	udpclient := client.NewClient(config)
 	udpclient.HandleConnected(OnConnected)
@@ -40,18 +42,35 @@ func main() {
 			}
 			fmt.Println("Клиент запущен")
 			break
-		case "send":
-			req := protocol.NewRequest("hi", protocol.MethodNone).
-				SetData("json", []byte(`{"message": "Hello, World!"}`))
-			fmt.Println("Сообщение отправлено")
-			resp := udpclient.Send(req)
-			fmt.Println(resp)
+		case "hi":
+			b, err := Hi(udpclient)
+			if err != nil {
+				fmt.Println(err)
+				break
+			}
+			fmt.Println(string(b))
+			break
+		case "winter":
+			var w []string
+			err := Winter(udpclient, &w)
+			if err != nil {
+				fmt.Println(err)
+				break
+			}
+			fmt.Println(w)
+			break
 		case "stop":
-			udpclient.Stop()
+			err = udpclient.Stop()
+			if err != nil {
+				fmt.Println(err)
+				break
+			}
 			fmt.Println("Клиент остановлен")
 			break
 		case "exit":
 			os.Exit(0)
+		default:
+			fmt.Println("Неизвестная команда")
 		}
 	}
 }
@@ -62,4 +81,37 @@ func OnConnected(c *client.Client) {
 
 func OnDisconnected(c *client.Client) {
 	fmt.Printf("Disconnected: %s\n", time.Now().Format("15:04:05"))
+}
+
+func Hi(c client.IClient) ([]byte, error) {
+	req := protocol.NewRequest("hi", protocol.MethodNone).
+		SetData("json", []byte(`{"message": "Hello, World!"}`))
+	resp, err := c.Send(req)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Data, nil
+}
+
+func Winter(c client.IClient, v interface{}) error {
+	req := protocol.NewRequest("winter", protocol.MethodGet)
+	resp, err := c.Send(req)
+	if err != nil {
+		return err
+	}
+	switch resp.ContentType {
+	case "json":
+		err = json.Unmarshal(resp.Data, v)
+		if err != nil {
+			return err
+		}
+		break
+	case "xml":
+		err = xml.Unmarshal(resp.Data, v)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

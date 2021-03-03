@@ -1,17 +1,20 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"github.com/egovorukhin/egoudp/protocol"
 	"github.com/google/uuid"
+	"io"
+	"log"
 	"net"
-	"strconv"
+	"os"
 	"strings"
 	"sync"
 	"time"
 )
 
-type Item struct {
+type QItem struct {
 	Request  *protocol.Request
 	Response *protocol.Response
 	sended   bool
@@ -25,6 +28,7 @@ type HandleDisconnected func(c *Client)
 type Client struct {
 	Config
 	*net.UDPConn
+	*log.Logger
 	Started   bool
 	Connected bool
 	sync.RWMutex
@@ -35,17 +39,25 @@ type Client struct {
 }
 
 type Config struct {
-	RemoteHost string
-	RemotePort int
-	LocalPort  int
+	Host       string
+	Port       int
 	BufferSize int
 	TimeOut    int
+	LogLevel   LogLevel
 }
+
+type LogLevel int
+
+const (
+	LogLevelLow LogLevel = iota
+	LogLevelHigh
+)
 
 type IClient interface {
 	Start(hostname, login, domain, version string) error
-	Stop()
-	Send(req *protocol.Request) *protocol.Response
+	Stop() error
+	SetLogger(out io.Writer, prefix string, flag int)
+	Send(req *protocol.Request) (*protocol.Response, error)
 	HandleConnected(handler HandleConnected)
 	HandleDisconnected(handler HandleDisconnected)
 }
@@ -55,22 +67,22 @@ const udp = "udp"
 func NewClient(config Config) IClient {
 	return &Client{
 		Config: config,
+		Logger: log.New(os.Stdout, "", log.Ldate|log.Ltime),
 	}
+}
+
+func (c *Client) SetLogger(out io.Writer, prefix string, flag int) {
+	c.Logger = log.New(out, prefix, flag)
 }
 
 func (c *Client) Start(hostname, login, domain, version string) error {
 
-	remoteAdder, err := net.ResolveUDPAddr(udp, fmt.Sprintf("%s:%d", c.RemoteHost, c.RemotePort))
+	remoteAdder, err := net.ResolveUDPAddr(udp, fmt.Sprintf("%s:%d", c.Host, c.Port))
 	if err != nil {
 		return err
 	}
 
-	localAddr, err := net.ResolveUDPAddr(udp, ":"+strconv.Itoa(c.LocalPort))
-	if err != nil {
-		return err
-	}
-
-	c.UDPConn, err = net.DialUDP(udp, localAddr, remoteAdder)
+	c.UDPConn, err = net.DialUDP(udp, nil, remoteAdder)
 	if err != nil {
 		return err
 	}
@@ -97,7 +109,7 @@ func (c *Client) send() {
 		}
 
 		c.queue.Range(func(key, value interface{}) bool {
-			item := value.(*Item)
+			item := value.(*QItem)
 			if !item.sended {
 				c.Lock()
 				c.packet.Request = item.Request
@@ -108,9 +120,13 @@ func (c *Client) send() {
 			return true
 		})
 
-		_, err := c.Write(c.packet.Marshal())
+		n, err := c.Write(c.packet.Marshal())
 		if err != nil {
-			fmt.Println(err)
+			c.Println(err)
+		}
+
+		if c.LogLevel == LogLevelHigh {
+			c.Printf("%s(%d)", c.packet.String(), n)
 		}
 
 		c.packet.Request = nil
@@ -171,27 +187,31 @@ func (c *Client) handleBufferParse(addr *net.UDPAddr, buffer []byte) {
 	go func() {
 		v, ok := c.queue.Load(resp.Id)
 		if ok {
-			v.(*Item).Response = resp
-			v.(*Item).received = true
+			v.(*QItem).Response = resp
+			v.(*QItem).received = true
 		}
 	}()
 }
 
-func (c *Client) Send(req *protocol.Request) *protocol.Response {
+func (c *Client) Send(req *protocol.Request) (*protocol.Response, error) {
 	req.Id = c.id()
-	c.queue.Store(req.Id, &Item{
+	c.queue.Store(req.Id, &QItem{
 		Request: req,
 	})
 
 	//Ждем ответа
 	resp := make(chan *protocol.Response)
-	go c.wait(req.Id, resp)
-	return <-resp
+	err := make(chan error)
+	go c.wait(req.Id, resp, err)
+	return <-resp, <-err
 }
 
-func (c *Client) wait(id string, resp chan *protocol.Response) {
+func (c *Client) wait(id string, resp chan *protocol.Response, err chan error) {
 
-	//resp <- nil
+	if !c.Connected {
+		resp <- nil
+		err <- errors.New("Клиент не подключен к серверу")
+	}
 
 	i := 0
 	go func() {
@@ -207,9 +227,10 @@ func (c *Client) wait(id string, resp chan *protocol.Response) {
 	received := false
 	for i < c.TimeOut {
 		c.queue.Range(func(key, value interface{}) bool {
-			item := value.(*Item)
+			item := value.(*QItem)
 			if key == id && item.received {
 				resp <- item.Response
+				err <- nil
 				received = true
 			}
 			return received
@@ -219,6 +240,8 @@ func (c *Client) wait(id string, resp chan *protocol.Response) {
 			return
 		}
 	}
+	resp <- nil
+	err <- errors.New("Вышло время ожидания запроса")
 }
 
 func (c *Client) id() string {
@@ -233,18 +256,16 @@ func (c *Client) HandleDisconnected(handler HandleDisconnected) {
 	c.handleDisconnected = handler
 }
 
-func (c *Client) Stop() {
+func (c *Client) Stop() error {
 	c.handleDisconnected(c)
 	err := c.Close()
 	if err != nil {
-		fmt.Println(err)
+		return err
 	}
-	/*err = c.listener.Close()
-	if err != nil {
-		fmt.Println(err)
-	}*/
 	c.Started = false
 	c.Lock()
 	c.packet.Header.Event = protocol.EventDisconnect
 	c.Unlock()
+
+	return nil
 }

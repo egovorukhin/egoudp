@@ -15,6 +15,7 @@ type Response struct {
 }
 
 type IResponse interface {
+	Response() *Response
 	OK(data []byte) *Response
 	Error(data []byte) *Response
 	SetData(data []byte) *Response
@@ -32,6 +33,10 @@ func NewResponse(req *Request, event Events) IResponse {
 		resp.ContentType = req.ContentType
 	}
 	return resp
+}
+
+func (r *Response) Response() *Response {
+	return r
 }
 
 func (r *Response) OK(data []byte) *Response {
