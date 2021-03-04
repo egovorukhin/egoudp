@@ -51,12 +51,20 @@ func main() {
 				}
 				fmt.Println(string(b))
 			}()
-			b, err := Hi(clt)
+			go func() {
+				b, err := Hi(clt)
+				if err != nil {
+					fmt.Println(err)
+					return
+				}
+				fmt.Println(string(b))
+			}()
+			/*b, err := Hi(clt)
 			if err != nil {
 				fmt.Println(err)
 				break
 			}
-			fmt.Println(string(b))
+			fmt.Println(string(b))*/
 			break
 		case "winter":
 			var w []string

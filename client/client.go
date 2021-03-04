@@ -115,6 +115,7 @@ func (c *Client) send() {
 				c.packet.Request = item.Request
 				c.Unlock()
 				item.sended = true
+				return false
 			}
 
 			return true
@@ -227,7 +228,7 @@ func (c *Client) wait(id string, resp chan *protocol.Response, err chan error) {
 	}()
 
 	received := false
-	for i < c.TimeOut || !received {
+	for i < c.TimeOut && !received {
 		c.queue.Range(func(key, value interface{}) bool {
 			item := value.(*QItem)
 			if key == id && item.received {
@@ -235,7 +236,7 @@ func (c *Client) wait(id string, resp chan *protocol.Response, err chan error) {
 				err <- nil
 				received = true
 			}
-			return received
+			return !received
 		})
 	}
 	c.queue.Delete(id)

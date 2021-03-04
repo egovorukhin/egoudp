@@ -171,16 +171,20 @@ func (s *Server) receive(addr *net.UDPAddr, packet *protocol.Packet) {
 	case protocol.EventConnected:
 		//событие подключения клиента
 		s.handleConnected(conn)
-		//отпраляем клиенту ответ
-		go conn.Send(resp.OK(nil))
+		//отправляем клиенту ответ
+		go func() {
+			_, err := conn.Send(resp.OK(nil))
+			if err != nil {
+				s.Println(err)
+			}
+		}()
 		return
 	//Команда на отключение клиента
 	case protocol.EventDisconnect:
 		//удаляем подключения из списка
 		conn.disconnect()
 		//событие отключения клиента
-		s.handleDisconnected(conn)
-		//отпраляем клиенту ответ
+		go s.handleDisconnected(conn)
 		return
 	}
 
