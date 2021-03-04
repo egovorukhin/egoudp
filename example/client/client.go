@@ -43,6 +43,14 @@ func main() {
 			fmt.Println("Клиент запущен")
 			break
 		case "hi":
+			go func() {
+				b, err := Hi(clt)
+				if err != nil {
+					fmt.Println(err)
+					return
+				}
+				fmt.Println(string(b))
+			}()
 			b, err := Hi(clt)
 			if err != nil {
 				fmt.Println(err)

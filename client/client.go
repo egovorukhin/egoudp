@@ -145,17 +145,17 @@ func (c *Client) receive() {
 			break
 		}
 
-		n, addr, err := c.ReadFromUDP(buffer)
+		n, _, err := c.ReadFromUDP(buffer)
 		if err != nil {
 			continue
 		}
 
 		//Передаем данные и разбираем их
-		go c.handleBufferParse(addr, buffer[:n])
+		go c.handleBufferParse(buffer[:n])
 	}
 }
 
-func (c *Client) handleBufferParse(addr *net.UDPAddr, buffer []byte) {
+func (c *Client) handleBufferParse(buffer []byte) {
 
 	resp := new(protocol.Response)
 	err := resp.Unmarshal(buffer)
@@ -196,7 +196,9 @@ func (c *Client) handleBufferParse(addr *net.UDPAddr, buffer []byte) {
 func (c *Client) Send(req *protocol.Request) (*protocol.Response, error) {
 	req.Id = c.id()
 	c.queue.Store(req.Id, &QItem{
-		Request: req,
+		Request:  req,
+		sended:   false,
+		received: false,
 	})
 
 	//Ждем ответа
@@ -225,7 +227,7 @@ func (c *Client) wait(id string, resp chan *protocol.Response, err chan error) {
 	}()
 
 	received := false
-	for i < c.TimeOut {
+	for i < c.TimeOut || !received {
 		c.queue.Range(func(key, value interface{}) bool {
 			item := value.(*QItem)
 			if key == id && item.received {
@@ -235,10 +237,10 @@ func (c *Client) wait(id string, resp chan *protocol.Response, err chan error) {
 			}
 			return received
 		})
-		if received {
-			c.queue.Delete(id)
-			return
-		}
+	}
+	c.queue.Delete(id)
+	if received {
+		return
 	}
 	resp <- nil
 	err <- errors.New("Вышло время ожидания запроса")

@@ -6,6 +6,7 @@ import (
 	"github.com/egovorukhin/egoudp/server"
 	"os"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -63,6 +64,7 @@ func OnDisconnected(c *server.Connection) {
 func Hi(c *server.Connection, resp protocol.IResponse, req protocol.Request) {
 	resp.SetData(req.Data)
 	fmt.Println(string(req.Data))
+	time.Sleep(10 * time.Second)
 	_, err := c.Send(resp)
 	if err != nil {
 		fmt.Println(err)

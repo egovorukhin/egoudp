@@ -186,7 +186,7 @@ func (s *Server) receive(addr *net.UDPAddr, packet *protocol.Packet) {
 
 	if packet.Request != nil {
 		//Если есть данные с прицепом, то что то с ними делаем...
-		s.handleFuncRoute(conn, resp, *packet.Request)
+		go s.handleFuncRoute(conn, resp, *packet.Request)
 	}
 }
 
