@@ -120,5 +120,6 @@ func (r *Response) String() string {
 	if r.Data != nil {
 		data = fmt.Sprintf("%v", r.Data)
 	}
-	return fmt.Sprintf("Id: %s, status_code: %d, content_type: %s, data: %s", r.Id, r.StatusCode, r.ContentType, data)
+	return fmt.Sprintf("id: %s, status_code: %s(%d), event: %s(%d), content_type: %s, data: %s",
+		r.Id, r.StatusCode.String(), r.StatusCode, r.Event.String(), r.Event, r.ContentType, data)
 }
