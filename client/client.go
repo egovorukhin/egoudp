@@ -100,6 +100,7 @@ func (c *Client) Start(hostname, login, domain, version string) error {
 	return nil
 }
 
+//Отправка данных.
 func (c *Client) send() {
 
 	for {
@@ -108,6 +109,7 @@ func (c *Client) send() {
 			break
 		}
 
+		//Пробегаемся по очереди и заполняем Request
 		c.queue.Range(func(key, value interface{}) bool {
 			item := value.(*QItem)
 			if !item.sended {
@@ -121,6 +123,7 @@ func (c *Client) send() {
 			return true
 		})
 
+		//Пишем данные в порт
 		n, err := c.Write(c.packet.Marshal())
 		if err != nil {
 			c.Println(err)
@@ -130,12 +133,14 @@ func (c *Client) send() {
 			c.Printf("%s(%d)", c.packet.String(), n)
 		}
 
+		//Очищаем Request
 		c.packet.Request = nil
 
 		time.Sleep(time.Second * 1)
 	}
 }
 
+//Прием данных
 func (c *Client) receive() {
 
 	buffer := make([]byte, c.BufferSize)
@@ -156,6 +161,7 @@ func (c *Client) receive() {
 	}
 }
 
+//Функция парсинга входных данных.
 func (c *Client) handleBufferParse(buffer []byte) {
 
 	resp := new(protocol.Response)
@@ -194,6 +200,8 @@ func (c *Client) handleBufferParse(buffer []byte) {
 	}()
 }
 
+//Отправка запроса на сервер. Добавляем в очередь запрос
+//и запускаем wait функцию
 func (c *Client) Send(req *protocol.Request) (*protocol.Response, error) {
 	req.Id = c.id()
 	c.queue.Store(req.Id, &QItem{
@@ -209,6 +217,8 @@ func (c *Client) Send(req *protocol.Request) (*protocol.Response, error) {
 	return <-resp, <-err
 }
 
+//Ждем ответ от сервера на наш запрос.
+//Если в течении timeout не придет ответ, то возвращаем nil
 func (c *Client) wait(id string, resp chan *protocol.Response, err chan error) {
 
 	if !c.Connected {

@@ -16,7 +16,7 @@ func TestUnmarshal(t *testing.T) {
 			Event:    EventDisconnect,
 		},
 		Request: &Request{
-			Route:       "example",
+			Path:        "example",
 			Id:          "123456",
 			Method:      MethodSet,
 			ContentType: "json",
