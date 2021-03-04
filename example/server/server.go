@@ -62,7 +62,7 @@ func OnDisconnected(c *server.Connection) {
 }
 
 func Hi(c *server.Connection, resp protocol.IResponse, req protocol.Request) {
-	resp.SetData(req.Data)
+	resp.SetData(protocol.StatusCodeOK, req.Data)
 	fmt.Println(string(req.Data))
 	time.Sleep(10 * time.Second)
 	_, err := c.Send(resp)
@@ -74,7 +74,7 @@ func Hi(c *server.Connection, resp protocol.IResponse, req protocol.Request) {
 func Winter(c *server.Connection, resp protocol.IResponse, req protocol.Request) {
 	//JSON
 	data := `["Декабрь", "Январь", "Февраль"]`
-	resp = resp.SetData([]byte(data)).SetContentType("json")
+	resp = resp.SetData(protocol.StatusCodeOK, []byte(data)).SetContentType("json")
 	_, err := c.Send(resp)
 	if err != nil {
 		fmt.Println(err)

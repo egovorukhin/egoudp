@@ -18,7 +18,7 @@ type IResponse interface {
 	Response() *Response
 	OK(data []byte) *Response
 	Error(data []byte) *Response
-	SetData(data []byte) *Response
+	SetData(code StatusCode, data []byte) *Response
 	SetContentType(s string) *Response
 	Marshal() []byte
 	Unmarshal(b []byte) error
@@ -40,14 +40,12 @@ func (r *Response) Response() *Response {
 }
 
 func (r *Response) OK(data []byte) *Response {
-	r.StatusCode = StatusCodeOK
-	r.SetData(data)
+	r.SetData(StatusCodeOK, data)
 	return r
 }
 
 func (r *Response) Error(data []byte) *Response {
-	r.StatusCode = StatusCodeError
-	r.SetData(data)
+	r.SetData(StatusCodeError, data)
 	return r
 }
 
@@ -56,7 +54,8 @@ func (r *Response) SetContentType(s string) *Response {
 	return r
 }
 
-func (r *Response) SetData(data []byte) *Response {
+func (r *Response) SetData(code StatusCode, data []byte) *Response {
+	r.StatusCode = code
 	r.Data = data
 	return r
 }
