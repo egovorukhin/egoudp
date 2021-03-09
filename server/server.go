@@ -17,10 +17,8 @@ import (
 const udp = "udp"
 
 //События
-type HandleStart func(s *Server)
-type HandleStop func(s *Server)
-type HandleConnected func(c *Connection)
-type HandleDisconnected func(c *Connection)
+type HandleServer func(s *Server)
+type HandleConnection func(c *Connection)
 
 type Server struct {
 	Connections sync.Map //*Connections
@@ -29,10 +27,10 @@ type Server struct {
 	Config
 	Started            bool
 	Router             sync.Map
-	handleStart        HandleStart
-	handleStop         HandleStop
-	handleConnected    HandleConnected
-	handleDisconnected HandleDisconnected
+	handleStart        HandleServer
+	handleStop         HandleServer
+	handleConnected    HandleConnection
+	handleDisconnected HandleConnection
 }
 
 type Config struct {
@@ -58,10 +56,10 @@ type IServer interface {
 	Stop()
 	Send(route string, resp *protocol.Response) (int, error)
 	SetRoute(path string, method protocol.Methods, handler FuncHandler)
-	HandleStart(handler HandleStart)
-	HandleStop(handler HandleStop)
-	HandleConnected(handler HandleConnected)
-	HandleDisconnected(handler HandleDisconnected)
+	HandleStart(handler HandleServer)
+	HandleStop(handler HandleServer)
+	HandleConnected(handler HandleConnection)
+	HandleDisconnected(handler HandleConnection)
 }
 
 func New(config Config) IServer {
@@ -273,19 +271,19 @@ func (s *Server) handleFuncRoute(c *Connection, resp protocol.IResponse, req pro
 	}
 }
 
-func (s *Server) HandleStart(handler HandleStart) {
+func (s *Server) HandleStart(handler HandleServer) {
 	s.handleStart = handler
 }
 
-func (s *Server) HandleStop(handler HandleStop) {
+func (s *Server) HandleStop(handler HandleServer) {
 	s.handleStop = handler
 }
 
-func (s *Server) HandleConnected(handler HandleConnected) {
+func (s *Server) HandleConnected(handler HandleConnection) {
 	s.handleConnected = handler
 }
 
-func (s *Server) HandleDisconnected(handler HandleDisconnected) {
+func (s *Server) HandleDisconnected(handler HandleConnection) {
 	s.handleDisconnected = handler
 }
 

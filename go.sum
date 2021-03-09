@@ -1,2 +1,4 @@
+github.com/egovorukhin/egotimer v0.0.0-20210309183029-f9a1cc73b48e h1:sJd8Q37kwZT7mxkHoS76fvesww497UK8gSPG3AKw0U0=
+github.com/egovorukhin/egotimer v0.0.0-20210309183029-f9a1cc73b48e/go.mod h1:ruG9dw+XlcRsIREc5b+erZNM+Hu+gQ7e8DcYwrYt1Lc=
 github.com/google/uuid v1.2.0 h1:qJYtXnJRWmpe7m/3XlyhrsLrEURqHRM2kxzoxXqyUDs=
 github.com/google/uuid v1.2.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
