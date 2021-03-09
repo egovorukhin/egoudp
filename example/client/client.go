@@ -22,6 +22,7 @@ func main() {
 	clt := client.New(config)
 	clt.HandleConnected(OnConnected)
 	clt.HandleDisconnected(OnDisconnected)
+	clt.HandleCheckConnection(OnCheckConnection)
 	hostname, err := os.Hostname()
 	if err != nil {
 		panic(err)
@@ -76,11 +77,7 @@ func main() {
 			fmt.Println(w)
 			break
 		case "stop":
-			err = clt.Stop()
-			if err != nil {
-				fmt.Println(err)
-				break
-			}
+			clt.Stop()
 			fmt.Println("Клиент остановлен")
 			break
 		case "exit":
@@ -97,6 +94,10 @@ func OnConnected(c *client.Client) {
 
 func OnDisconnected(c *client.Client) {
 	fmt.Printf("Disconnected: %s\n", time.Now().Format("15:04:05"))
+}
+
+func OnCheckConnection(c *client.Client) {
+	fmt.Printf("CheckConnection: %s\n", time.Now().Format("15:04:05"))
 }
 
 func Hi(c client.IClient) ([]byte, error) {

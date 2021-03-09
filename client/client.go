@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/egovorukhin/egoudp/protocol"
+	"github.com/egovorukhin/egoudp/timer"
 	"github.com/google/uuid"
 	"io"
 	"log"
@@ -31,15 +32,15 @@ type HandleCheckConnection func(c *Client)
 
 type Client struct {
 	Config
-	*net.UDPConn
+	connection *net.UDPConn
 	*log.Logger
-	Started   bool
-	Connected bool
+	Started bool
 	sync.RWMutex
+	Connected              bool
 	packet                 *protocol.Packet
 	queue                  sync.Map
 	checkConnectionTimeout int
-	checkConnectionTimer   *time.Ticker
+	checkConnectionTimer   *timer.Timer
 	handleStart            HandleStart
 	handleStop             HandleStop
 	handleConnected        HandleConnected
@@ -64,7 +65,7 @@ const (
 
 type IClient interface {
 	Start(hostname, login, domain, version string) error
-	Stop() error
+	Stop()
 	SetLogger(out io.Writer, prefix string, flag int)
 	Send(req *protocol.Request) (*protocol.Response, error)
 	HandleStart(handler HandleStart)
@@ -94,7 +95,7 @@ func (c *Client) Start(hostname, login, domain, version string) error {
 		return err
 	}
 
-	c.UDPConn, err = net.DialUDP(udp, nil, remoteAdder)
+	c.connection, err = net.DialUDP(udp, nil, remoteAdder)
 	if err != nil {
 		return err
 	}
@@ -115,11 +116,9 @@ func (c *Client) Start(hostname, login, domain, version string) error {
 //Отправка данных.
 func (c *Client) send() {
 
-	for {
+	defer c.connection.Close()
 
-		if !c.Started {
-			break
-		}
+	for {
 
 		//Пробегаемся по очереди и заполняем Request
 		c.queue.Range(func(key, value interface{}) bool {
@@ -136,7 +135,7 @@ func (c *Client) send() {
 		})
 
 		//Пишем данные в порт
-		n, err := c.Write(c.packet.Marshal())
+		n, err := c.connection.Write(c.packet.Marshal())
 		if err != nil {
 			c.Println(err)
 		}
@@ -147,6 +146,11 @@ func (c *Client) send() {
 
 		//Очищаем Request
 		c.packet.Request = nil
+
+		if c.packet.Header.Event == protocol.EventDisconnect {
+			c.Started = false
+			break
+		}
 
 		time.Sleep(time.Second * 1)
 	}
@@ -163,7 +167,7 @@ func (c *Client) receive() {
 			break
 		}
 
-		n, _, err := c.ReadFromUDP(buffer)
+		n, _, err := c.connection.ReadFromUDP(buffer)
 		if err != nil {
 			continue
 		}
@@ -192,7 +196,9 @@ func (c *Client) handleBufferParse(buffer []byte) error {
 	//Отправляем команду о подключении клиенту
 	case protocol.EventConnected:
 		//событие подключения клиента
+		c.Lock()
 		c.Connected = true
+		c.Unlock()
 		if c.handleConnected != nil {
 			go c.handleConnected(c)
 		}
@@ -207,13 +213,16 @@ func (c *Client) handleBufferParse(buffer []byte) error {
 	//Команда на отключение клиента
 	case protocol.EventDisconnect:
 		//событие отключения клиента
+		c.Lock()
 		c.Connected = false
+		c.Unlock()
 		break
 	case protocol.EventCheckConnection:
 		//событие проверки активности сервера
-		if c.checkConnectionTimer != nil {
-			c.checkConnectionTimer.Reset(time.Duration(c.checkConnectionTimeout) * time.Second)
-		}
+		c.Lock()
+		c.Connected = true
+		c.Unlock()
+
 		if c.handleCheckConnection != nil {
 			go c.handleCheckConnection(c)
 		}
@@ -295,18 +304,21 @@ func (c *Client) wait(id string, resp chan *protocol.Response, err chan error) {
 }
 
 func (c *Client) startCheckConnectionTimer(timeout int) {
-	c.checkConnectionTimer = time.NewTicker(time.Duration(timeout) * time.Second)
-	defer c.checkConnectionTimer.Stop()
-	for _ = range c.checkConnectionTimer.C {
-		if c.handleDisconnected != nil {
-			go c.handleDisconnected(c)
+
+	c.checkConnectionTimer = timer.NewTimer(timeout, 1*time.Second)
+	c.checkConnectionTimer.Start(func() {
+		c.Lock()
+		if !c.Connected {
+			c.packet.Header.Event = protocol.EventConnected
+			c.Unlock()
+			if c.handleDisconnected != nil {
+				go c.handleDisconnected(c)
+			}
+			return
 		}
 		c.Connected = false
-		c.Lock()
-		c.packet.Header.Event = protocol.EventConnected
 		c.Unlock()
-		break
-	}
+	})
 }
 
 func (c *Client) id() string {
@@ -333,18 +345,12 @@ func (c *Client) HandleStop(handler HandleStop) {
 	c.handleStop = handler
 }
 
-func (c *Client) Stop() error {
+func (c *Client) Stop() {
 	if c.handleStop != nil {
 		c.handleStop(c)
 	}
-	err := c.Close()
-	if err != nil {
-		return err
-	}
-	c.Started = false
 	c.Lock()
+	c.Connected = false
 	c.packet.Header.Event = protocol.EventDisconnect
 	c.Unlock()
-
-	return nil
 }

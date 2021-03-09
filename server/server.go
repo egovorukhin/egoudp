@@ -55,7 +55,7 @@ type IServer interface {
 	GetRoutes() map[string]*Route
 	SetLogger(out io.Writer, prefix string, flag int)
 	Start() error
-	Stop() error
+	Stop()
 	Send(route string, resp *protocol.Response) (int, error)
 	SetRoute(path string, method protocol.Methods, handler FuncHandler)
 	HandleStart(handler HandleStart)
@@ -152,10 +152,11 @@ func (s *Server) newConnection(addr *net.UDPAddr, header protocol.Header) *Conne
 		Connected:       true,
 		disconnectTimer: nil,
 	}
-
 	//Запускаем таймер который будет удалять
 	//коннект при отсутствии прилетающих пакетов
+	//connection.done = make(chan bool)
 	go connection.startDisconnectTimer(s.DisconnectTimeout)
+	//Таймер отправки активности сервера
 	go connection.startCheckConnectionTimer(s.CheckConnectionTimeout)
 
 	return connection
@@ -195,6 +196,11 @@ func (s *Server) receive(addr *net.UDPAddr, packet *protocol.Packet) {
 	switch packet.Header.Event {
 	//Отправляем команду о подключении клиенту
 	case protocol.EventConnected:
+
+		if !conn.Connected {
+			return
+		}
+
 		//событие подключения клиента
 		if s.handleConnected != nil {
 			go s.handleConnected(conn)
@@ -212,11 +218,10 @@ func (s *Server) receive(addr *net.UDPAddr, packet *protocol.Packet) {
 	//Команда на отключение клиента
 	case protocol.EventDisconnect:
 		//удаляем подключения из списка
-		conn.disconnect()
-		//событие отключения клиента
-		if s.handleDisconnected != nil {
-			go s.handleDisconnected(conn)
-		}
+		//conn.disconnect()
+		conn.Lock()
+		conn.Connected = false
+		conn.Unlock()
 		return
 	}
 
@@ -315,17 +320,14 @@ func (s *Server) GetRoutes() (routes map[string]*Route) {
 	return
 }
 
-func (s *Server) Stop() error {
+func (s *Server) Stop() {
+	s.Started = false
 	if s.handleStop != nil {
 		s.handleStop(s)
 	}
 	for _, conn := range s.GetConnections() {
-		conn.disconnect()
+		conn.Lock()
+		conn.Connected = false
+		conn.Unlock()
 	}
-	s.Started = false
-	/*if s.listener != nil {
-		return s.listener.Close()
-	}
-	return errors.New("Невозможно остановить сервер, он не был запущен. Используйте Start для запуска.")*/
-	return nil
 }

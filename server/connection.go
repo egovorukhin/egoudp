@@ -27,22 +27,25 @@ type Connection struct {
 func (c *Connection) startDisconnectTimer(timeout int) {
 	c.disconnectTimer = time.NewTicker(time.Duration(timeout) * time.Second)
 	for _ = range c.disconnectTimer.C {
-		//Проверяем на признак подключения
-		if c.Connected {
-			//Через timeout времени ставим флаг в не подключен
-			c.Lock()
-			c.Connected = false
-			c.Unlock()
-			continue
-		} else {
+		c.Lock()
+		if !c.Connected {
 			c.disconnect()
+			return
 		}
+		c.Connected = false
+		c.Unlock()
 	}
 }
 
 func (c *Connection) startCheckConnectionTimer(timeout int) {
 	c.checkConnectionTimer = time.NewTicker(time.Duration(timeout) * time.Second)
 	for _ = range c.checkConnectionTimer.C {
+		c.Lock()
+		if !c.Connected {
+			return
+		}
+		c.Unlock()
+
 		resp := &protocol.Response{
 			StatusCode: protocol.StatusCodeOK,
 			Event:      protocol.EventCheckConnection,
@@ -89,24 +92,23 @@ func (c *Connection) Equals(header protocol.Header) bool {
 }
 
 func (c *Connection) disconnect() {
-	if c == nil {
-		return
-	}
 	c.disconnectTimer.Stop()
 	c.checkConnectionTimer.Stop()
-	c.Lock()
-	c.Connected = false
-	c.Unlock()
 	t := time.Now()
 	c.DisconnectTime = &t
 	//c.UDPConn.Close()
 	//Удаляем подключение из списка
 	c.deleteConnection(c.Hostname)
 	//событие при отключении
-	c.handleDisconnected(c)
+	if c.handleDisconnected != nil {
+		c.handleDisconnected(c)
+	}
 }
 
 func (c *Connection) Send(resp protocol.IResponse) (int, error) {
+	if !c.Started {
+		return 0, nil
+	}
 	return c.listener.WriteToUDP(resp.Marshal(), c.IpAddress)
 }
 
