@@ -130,6 +130,10 @@ func (s *Server) Start() (err error) {
 
 	s.Started = true
 
+	if s.handleStart != nil {
+		go s.handleStart(s)
+	}
+
 	return
 }
 
@@ -192,7 +196,9 @@ func (s *Server) receive(addr *net.UDPAddr, packet *protocol.Packet) {
 	//Отправляем команду о подключении клиенту
 	case protocol.EventConnected:
 		//событие подключения клиента
-		s.handleConnected(conn)
+		if s.handleConnected != nil {
+			go s.handleConnected(conn)
+		}
 		//отправляем клиенту ответ,
 		//передаем время для таймера проверки активности сервера
 		//прибавляем 5 сек, чтобы расклиент ждал проверку дольше
@@ -208,7 +214,9 @@ func (s *Server) receive(addr *net.UDPAddr, packet *protocol.Packet) {
 		//удаляем подключения из списка
 		conn.disconnect()
 		//событие отключения клиента
-		go s.handleDisconnected(conn)
+		if s.handleDisconnected != nil {
+			go s.handleDisconnected(conn)
+		}
 		return
 	}
 
@@ -308,13 +316,16 @@ func (s *Server) GetRoutes() (routes map[string]*Route) {
 }
 
 func (s *Server) Stop() error {
-	s.handleStop(s)
+	if s.handleStop != nil {
+		s.handleStop(s)
+	}
 	for _, conn := range s.GetConnections() {
 		conn.disconnect()
 	}
 	s.Started = false
-	if s.listener != nil {
+	/*if s.listener != nil {
 		return s.listener.Close()
 	}
-	return errors.New("Невозможно остановить сервер, он не был запущен. Используйте Start для запуска.")
+	return errors.New("Невозможно остановить сервер, он не был запущен. Используйте Start для запуска.")*/
+	return nil
 }

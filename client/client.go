@@ -193,7 +193,9 @@ func (c *Client) handleBufferParse(buffer []byte) error {
 	case protocol.EventConnected:
 		//событие подключения клиента
 		c.Connected = true
-		go c.handleConnected(c)
+		if c.handleConnected != nil {
+			go c.handleConnected(c)
+		}
 		if resp.Data != nil {
 			c.checkConnectionTimeout, err = strconv.Atoi(string(resp.Data))
 			if err != nil {
@@ -211,6 +213,9 @@ func (c *Client) handleBufferParse(buffer []byte) error {
 		//событие проверки активности сервера
 		if c.checkConnectionTimer != nil {
 			c.checkConnectionTimer.Reset(time.Duration(c.checkConnectionTimeout) * time.Second)
+		}
+		if c.handleCheckConnection != nil {
+			go c.handleCheckConnection(c)
 		}
 		break
 	}
@@ -293,7 +298,9 @@ func (c *Client) startCheckConnectionTimer(timeout int) {
 	c.checkConnectionTimer = time.NewTicker(time.Duration(timeout) * time.Second)
 	defer c.checkConnectionTimer.Stop()
 	for _ = range c.checkConnectionTimer.C {
-		go c.handleDisconnected(c)
+		if c.handleDisconnected != nil {
+			go c.handleDisconnected(c)
+		}
 		c.Connected = false
 		c.Lock()
 		c.packet.Header.Event = protocol.EventConnected
@@ -327,7 +334,9 @@ func (c *Client) HandleStop(handler HandleStop) {
 }
 
 func (c *Client) Stop() error {
-	c.handleStop(c)
+	if c.handleStop != nil {
+		c.handleStop(c)
+	}
 	err := c.Close()
 	if err != nil {
 		return err
