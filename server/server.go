@@ -32,10 +32,11 @@ type Server struct {
 }
 
 type Config struct {
-	Port              int
-	BufferSize        int
-	DisconnectTimeOut int
-	LogLevel          LogLevel
+	Port                   int
+	BufferSize             int
+	DisconnectTimeout      int
+	CheckConnectionTimeout int
+	LogLevel               LogLevel
 }
 
 type LogLevel int
@@ -97,6 +98,18 @@ func (s *Server) Start() (err error) {
 				s.Println(err)
 				continue
 			}
+			/*bytes := 0
+			var addr *net.UDPAddr
+			var data []byte
+			for bytes > 0 {
+				var n int
+				n, addr, err = s.listener.ReadFromUDP(buffer)
+				if err != nil {
+					s.Println(err)
+					break
+				}
+				data = append(data, buffer[:n]...)
+			}*/
 
 			if s.LogLevel == LogLevelHigh {
 				s.Println("%s(%d)", string(buffer[:n]), n)
@@ -115,22 +128,23 @@ func (s *Server) Start() (err error) {
 func (s *Server) newConnection(addr *net.UDPAddr, header protocol.Header) *Connection {
 
 	connection := &Connection{
-		Server:         s,
-		Hostname:       header.Hostname,
-		IpAddress:      addr,
-		Domain:         header.Domain,
-		Login:          header.Login,
-		ConnectTime:    time.Now(),
-		DisconnectTime: nil,
-		Version:        header.Version,
-		RWMutex:        sync.RWMutex{},
-		flagConnected:  true,
-		ticker:         nil,
+		Server:          s,
+		Hostname:        header.Hostname,
+		IpAddress:       addr,
+		Domain:          header.Domain,
+		Login:           header.Login,
+		ConnectTime:     time.Now(),
+		DisconnectTime:  nil,
+		Version:         header.Version,
+		RWMutex:         sync.RWMutex{},
+		Connected:       true,
+		disconnectTimer: nil,
 	}
 
 	//Запускаем таймер который будет удалять
 	//коннект при отсутствии прилетающих пакетов
-	go connection.startTimer(s.DisconnectTimeOut)
+	go connection.startDisconnectTimer(s.DisconnectTimeout)
+	go connection.startCheckConnectionTimer(s.CheckConnectionTimeout)
 
 	return connection
 }
@@ -171,9 +185,11 @@ func (s *Server) receive(addr *net.UDPAddr, packet *protocol.Packet) {
 	case protocol.EventConnected:
 		//событие подключения клиента
 		s.handleConnected(conn)
-		//отправляем клиенту ответ
+		//отправляем клиенту ответ,
+		//передаем время для таймера проверки активности сервера
+		//прибавляем 5 сек, чтобы расклиент ждал проверку дольше
 		go func() {
-			_, err := conn.Send(resp.OK(nil))
+			_, err := conn.Send(resp.OK([]byte(strconv.Itoa(s.CheckConnectionTimeout + 5))))
 			if err != nil {
 				s.Println(err)
 			}
@@ -275,5 +291,8 @@ func (s *Server) GetRoutes() (routes map[string]*Route) {
 
 func (s *Server) Stop() error {
 	s.Started = false
+	for _, conn := range s.GetConnections() {
+		conn.disconnect()
+	}
 	return s.listener.Close()
 }

@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,13 +18,14 @@ import (
 type QItem struct {
 	Request  *protocol.Request
 	Response *protocol.Response
-	sended   bool
-	received bool
+	Sent     bool
+	Received bool
 }
 
 //События
 type HandleConnected func(c *Client)
 type HandleDisconnected func(c *Client)
+type HandleCheckConnection func(c *Client)
 
 type Client struct {
 	Config
@@ -32,17 +34,20 @@ type Client struct {
 	Started   bool
 	Connected bool
 	sync.RWMutex
-	packet             *protocol.Packet
-	queue              sync.Map
-	handleConnected    HandleConnected
-	handleDisconnected HandleDisconnected
+	packet                 *protocol.Packet
+	queue                  sync.Map
+	checkConnectionTimeout int
+	checkConnectionTimer   *time.Ticker
+	handleConnected        HandleConnected
+	handleDisconnected     HandleDisconnected
+	handleCheckConnection  HandleCheckConnection
 }
 
 type Config struct {
 	Host       string
 	Port       int
 	BufferSize int
-	TimeOut    int
+	Timeout    int
 	LogLevel   LogLevel
 }
 
@@ -60,6 +65,7 @@ type IClient interface {
 	Send(req *protocol.Request) (*protocol.Response, error)
 	HandleConnected(handler HandleConnected)
 	HandleDisconnected(handler HandleDisconnected)
+	HandleCheckConnection(handler HandleCheckConnection)
 }
 
 const udp = "udp"
@@ -112,11 +118,11 @@ func (c *Client) send() {
 		//Пробегаемся по очереди и заполняем Request
 		c.queue.Range(func(key, value interface{}) bool {
 			item := value.(*QItem)
-			if !item.sended {
+			if !item.Sent {
 				c.Lock()
 				c.packet.Request = item.Request
 				c.Unlock()
-				item.sended = true
+				item.Sent = true
 				return false
 			}
 
@@ -157,17 +163,22 @@ func (c *Client) receive() {
 		}
 
 		//Передаем данные и разбираем их
-		go c.handleBufferParse(buffer[:n])
+		go func() {
+			err = c.handleBufferParse(buffer[:n])
+			if err != nil {
+				c.Println(err)
+			}
+		}()
 	}
 }
 
 //Функция парсинга входных данных.
-func (c *Client) handleBufferParse(buffer []byte) {
+func (c *Client) handleBufferParse(buffer []byte) error {
 
 	resp := new(protocol.Response)
 	err := resp.Unmarshal(buffer)
 	if err != nil {
-		return
+		return err
 	}
 
 	//Проверяем события
@@ -176,28 +187,43 @@ func (c *Client) handleBufferParse(buffer []byte) {
 	case protocol.EventConnected:
 		//событие подключения клиента
 		c.Connected = true
-		c.Lock()
-		c.packet.Header.Event = protocol.EventNone
-		c.Unlock()
 		go c.handleConnected(c)
-		return
+		if resp.Data != nil {
+			c.checkConnectionTimeout, err = strconv.Atoi(string(resp.Data))
+			if err != nil {
+				return err
+			}
+			go c.startCheckConnectionTimer(c.checkConnectionTimeout)
+		}
+		break
 	//Команда на отключение клиента
 	case protocol.EventDisconnect:
 		//событие отключения клиента
 		c.Connected = false
-		c.Lock()
-		c.packet.Header.Event = protocol.EventNone
-		c.Unlock()
-		return
+		break
+	case protocol.EventCheckConnection:
+		//событие проверки активности сервера
+		if c.checkConnectionTimer != nil {
+			c.checkConnectionTimer.Reset(time.Duration(c.checkConnectionTimeout) * time.Second)
+		}
+		break
 	}
+
+	c.Lock()
+	if c.packet.Header.Event != protocol.EventNone {
+		c.packet.Header.Event = protocol.EventNone
+	}
+	c.Unlock()
 
 	go func() {
 		v, ok := c.queue.Load(resp.Id)
 		if ok {
 			v.(*QItem).Response = resp
-			v.(*QItem).received = true
+			v.(*QItem).Received = true
 		}
 	}()
+
+	return nil
 }
 
 //Отправка запроса на сервер. Добавляем в очередь запрос
@@ -206,8 +232,8 @@ func (c *Client) Send(req *protocol.Request) (*protocol.Response, error) {
 	req.Id = c.id()
 	c.queue.Store(req.Id, &QItem{
 		Request:  req,
-		sended:   false,
-		received: false,
+		Sent:     false,
+		Received: false,
 	})
 
 	//Ждем ответа
@@ -229,7 +255,7 @@ func (c *Client) wait(id string, resp chan *protocol.Response, err chan error) {
 	i := 0
 	go func() {
 		for {
-			if i == c.TimeOut {
+			if i == c.Timeout {
 				return
 			}
 			time.Sleep(1 * time.Second)
@@ -238,10 +264,10 @@ func (c *Client) wait(id string, resp chan *protocol.Response, err chan error) {
 	}()
 
 	received := false
-	for i < c.TimeOut && !received {
+	for i < c.Timeout && !received {
 		c.queue.Range(func(key, value interface{}) bool {
 			item := value.(*QItem)
-			if key == id && item.received {
+			if key == id && item.Received {
 				resp <- item.Response
 				err <- nil
 				received = true
@@ -257,6 +283,19 @@ func (c *Client) wait(id string, resp chan *protocol.Response, err chan error) {
 	err <- errors.New("Вышло время ожидания запроса")
 }
 
+func (c *Client) startCheckConnectionTimer(timeout int) {
+	c.checkConnectionTimer = time.NewTicker(time.Duration(timeout) * time.Second)
+	defer c.checkConnectionTimer.Stop()
+	for _ = range c.checkConnectionTimer.C {
+		go c.handleDisconnected(c)
+		c.Connected = false
+		c.Lock()
+		c.packet.Header.Event = protocol.EventConnected
+		c.Unlock()
+		break
+	}
+}
+
 func (c *Client) id() string {
 	return strings.Replace(uuid.New().String(), "-", "", -1)
 }
@@ -267,6 +306,10 @@ func (c *Client) HandleConnected(handler HandleConnected) {
 
 func (c *Client) HandleDisconnected(handler HandleDisconnected) {
 	c.handleDisconnected = handler
+}
+
+func (c *Client) HandleCheckConnection(handler HandleCheckConnection) {
+	c.handleCheckConnection = handler
 }
 
 func (c *Client) Stop() error {

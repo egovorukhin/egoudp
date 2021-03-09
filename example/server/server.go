@@ -11,10 +11,11 @@ import (
 
 func main() {
 	config := server.Config{
-		Port:              5655,
-		BufferSize:        4096,
-		DisconnectTimeOut: 5,
-		LogLevel:          0,
+		Port:                   5655,
+		BufferSize:             256,
+		DisconnectTimeout:      5,
+		CheckConnectionTimeout: 30,
+		LogLevel:               0,
 	}
 	srv := server.New(config)
 	srv.HandleConnected(OnConnected)

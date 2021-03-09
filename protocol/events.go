@@ -8,6 +8,7 @@ const (
 	EventNone Events = iota
 	EventConnected
 	EventDisconnect
+	EventCheckConnection
 )
 
 func ToEvent(s string) Events {
@@ -18,6 +19,9 @@ func ToEvent(s string) Events {
 		break
 	case "2":
 		event = EventDisconnect
+		break
+	case "3":
+		event = EventCheckConnection
 		break
 	default:
 		event = EventNone

@@ -16,7 +16,7 @@ func main() {
 		Host:       "localhost",
 		Port:       5655,
 		BufferSize: 4096,
-		TimeOut:    30,
+		Timeout:    30,
 		LogLevel:   0,
 	}
 	clt := client.New(config)

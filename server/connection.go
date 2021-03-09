@@ -19,18 +19,19 @@ type Connection struct {
 	DisconnectTime *time.Time
 	Version        string
 	sync.RWMutex
-	flagConnected bool
-	ticker        *time.Ticker
+	Connected            bool
+	disconnectTimer      *time.Ticker
+	checkConnectionTimer *time.Ticker
 }
 
-func (c *Connection) startTimer(timeout int) {
-	c.ticker = time.NewTicker(time.Duration(timeout) * time.Second)
-	for _ = range c.ticker.C {
+func (c *Connection) startDisconnectTimer(timeout int) {
+	c.disconnectTimer = time.NewTicker(time.Duration(timeout) * time.Second)
+	for _ = range c.disconnectTimer.C {
 		//Проверяем на признак подключения
-		if c.flagConnected {
-			//Через timeout времени ставим флаг в неподключен
+		if c.Connected {
+			//Через timeout времени ставим флаг в не подключен
 			c.Lock()
-			c.flagConnected = false
+			c.Connected = false
 			c.Unlock()
 			continue
 		} else {
@@ -39,10 +40,29 @@ func (c *Connection) startTimer(timeout int) {
 	}
 }
 
+func (c *Connection) startCheckConnectionTimer(timeout int) {
+	c.checkConnectionTimer = time.NewTicker(time.Duration(timeout) * time.Second)
+	for _ = range c.checkConnectionTimer.C {
+		resp := &protocol.Response{
+			StatusCode: protocol.StatusCodeOK,
+			Event:      protocol.EventCheckConnection,
+		}
+		n, err := c.Send(resp)
+		if err != nil {
+			c.Println(err)
+			continue
+		}
+
+		if c.LogLevel == LogLevelHigh {
+			c.Printf("CheckConnection: %s(%d)\n", resp.String(), n)
+		}
+	}
+}
+
 func (c *Connection) updated(addr *net.UDPAddr, header protocol.Header) bool {
 
 	c.Lock()
-	c.flagConnected = true
+	c.Connected = true
 	c.Unlock()
 
 	if !c.Equals(header) || !strings.EqualFold(c.IpAddress.String(), addr.String()) /*!c.IpAddress.IP.Equal(addr.IP)*/ {
@@ -72,9 +92,10 @@ func (c *Connection) disconnect() {
 	if c == nil {
 		return
 	}
-	c.ticker.Stop()
+	c.disconnectTimer.Stop()
+	c.checkConnectionTimer.Stop()
 	c.Lock()
-	c.flagConnected = false
+	c.Connected = false
 	c.Unlock()
 	t := time.Now()
 	c.DisconnectTime = &t
@@ -95,6 +116,6 @@ func (c *Connection) String() string {
 		disconnect_time = c.DisconnectTime.Format("2006-01-02 15:04:05")
 	}
 	return fmt.Sprintf("hostname: %s, ip: %s, domain: %s, login: %s, version: %s, is_connected: %t, connect_time: %s, disconnect_time: %s",
-		c.Hostname, c.IpAddress.String(), c.Domain, c.Login, c.Version, c.flagConnected,
+		c.Hostname, c.IpAddress.String(), c.Domain, c.Login, c.Version, c.Connected,
 		c.ConnectTime.Format("2006-01-02 15:04:05"), disconnect_time)
 }
