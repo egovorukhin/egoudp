@@ -26,7 +26,7 @@ type Server struct {
 	*log.Logger
 	Config
 	Started            bool
-	Routers            sync.Map
+	Router             sync.Map
 	handleStart        HandleServer
 	handleStop         HandleServer
 	handleConnected    HandleConnection
@@ -50,7 +50,7 @@ const (
 
 type IServer interface {
 	GetConnections() map[string]*Connection
-	GetRoutes() map[string]*Router
+	GetRoutes() map[string]*Route
 	SetLogger(out io.Writer, prefix string, flag int)
 	Start() error
 	Stop()
@@ -256,7 +256,7 @@ func (s *Server) setConnection(addr *net.UDPAddr, packet *protocol.Packet) (conn
 }
 
 func (s *Server) SetRoute(path string, method protocol.Methods, handler FuncHandler) {
-	s.Routers.Store(path, &Router{
+	s.Router.Store(path, &Route{
 		Path:    path,
 		Method:  method,
 		Handler: handler,
@@ -264,9 +264,9 @@ func (s *Server) SetRoute(path string, method protocol.Methods, handler FuncHand
 }
 
 func (s *Server) handleFuncRoute(c *Connection, resp protocol.IResponse, req protocol.Request) {
-	v, ok := s.Routers.Load(req.Path)
+	v, ok := s.Router.Load(req.Path)
 	if ok {
-		route := v.(*Router)
+		route := v.(*Route)
 		if route.Method != req.Method {
 			resp.Error([]byte(fmt.Sprintf("Метод запроса не соответствует маршруту [%s]", route.Path)))
 			return
@@ -313,10 +313,10 @@ func (s *Server) GetConnections() (connections map[string]*Connection) {
 	return
 }
 
-func (s *Server) GetRoutes() (routes map[string]*Router) {
-	routes = map[string]*Router{}
-	s.Routers.Range(func(key, value interface{}) bool {
-		routes[key.(string)] = value.(*Router)
+func (s *Server) GetRoutes() (routes map[string]*Route) {
+	routes = map[string]*Route{}
+	s.Router.Range(func(key, value interface{}) bool {
+		routes[key.(string)] = value.(*Route)
 		return true
 	})
 	return
