@@ -30,9 +30,7 @@ type Client struct {
 	Config
 	connection *net.UDPConn
 	*log.Logger
-	Started bool
-	sync.RWMutex
-	Connected             bool
+	Started               bool
 	packet                *protocol.Packet
 	queue                 sync.Map
 	timeout               int
@@ -42,6 +40,8 @@ type Client struct {
 	handleConnected       HandleClient
 	handleDisconnected    HandleClient
 	handleCheckConnection HandleClient
+	sync.RWMutex
+	Connected bool
 }
 
 type Config struct {
@@ -143,10 +143,12 @@ func (c *Client) send() {
 		//Очищаем Request
 		c.packet.Request = nil
 
+		c.RLock()
 		if c.packet.Header.Event == protocol.EventDisconnect {
 			c.Started = false
 			break
 		}
+		c.RUnlock()
 
 		time.Sleep(time.Second * 1)
 	}

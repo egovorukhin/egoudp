@@ -8,12 +8,12 @@ import (
 //Функция которая вызывается при событии получения определённого маршоута
 type FuncHandler func(c *Connection, resp protocol.IResponse, req protocol.Request)
 
-type Route struct {
+type Router struct {
 	Path    string
 	Method  protocol.Methods
 	Handler FuncHandler
 }
 
-func (r *Route) String() string {
+func (r *Router) String() string {
 	return fmt.Sprintf("path: %s, method: %s", r.Path, r.Method.String())
 }

@@ -14,7 +14,7 @@ func main() {
 		Port:                   5655,
 		BufferSize:             256,
 		DisconnectTimeout:      5,
-		CheckConnectionTimeout: 30,
+		CheckConnectionTimeout: 3,
 		LogLevel:               0,
 	}
 	srv := server.New(config)
@@ -41,6 +41,12 @@ func main() {
 		case "stop":
 			srv.Stop()
 			fmt.Println("Сервер остановлен")
+			break
+		case "get_connections":
+			fmt.Println(srv.GetConnections())
+			break
+		case "get_routes":
+			fmt.Println(srv.GetRoutes())
 			break
 		case "exit":
 			os.Exit(0)

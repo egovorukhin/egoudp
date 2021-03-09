@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"github.com/egovorukhin/egotimer"
 	"github.com/egovorukhin/egoudp/protocol"
 	"net"
 	"strings"
@@ -19,32 +20,33 @@ type Connection struct {
 	DisconnectTime *time.Time
 	Version        string
 	sync.RWMutex
-	Connected            bool
-	disconnectTimer      *time.Ticker
-	checkConnectionTimer *time.Ticker
+	Connected bool
+	dTimer    *egotimer.Timer
+	ccTimer   *egotimer.Timer
 }
 
-func (c *Connection) startDisconnectTimer(timeout int) {
-	c.disconnectTimer = time.NewTicker(time.Duration(timeout) * time.Second)
-	for _ = range c.disconnectTimer.C {
+func (c *Connection) startDTimer(timeout int) {
+	c.dTimer = egotimer.New(time.Duration(timeout)*time.Second, func(t time.Time) bool {
 		c.Lock()
 		if !c.Connected {
 			c.disconnect()
-			return
+			return true
 		}
 		c.Connected = false
 		c.Unlock()
-	}
+		return false
+	})
+	c.dTimer.Start()
 }
 
-func (c *Connection) startCheckConnectionTimer(timeout int) {
-	c.checkConnectionTimer = time.NewTicker(time.Duration(timeout) * time.Second)
-	for _ = range c.checkConnectionTimer.C {
-		c.Lock()
+//Стартуем check connection timer
+func (c *Connection) startCCTimer(timeout int) {
+	c.ccTimer = egotimer.New(time.Duration(timeout)*time.Second, func(t time.Time) bool {
+		/*c.RLock()
 		if !c.Connected {
-			return
+			return true
 		}
-		c.Unlock()
+		c.RUnlock()*/
 
 		resp := &protocol.Response{
 			StatusCode: protocol.StatusCodeOK,
@@ -53,20 +55,18 @@ func (c *Connection) startCheckConnectionTimer(timeout int) {
 		n, err := c.Send(resp)
 		if err != nil {
 			c.Println(err)
-			continue
+			return false
 		}
 
 		if c.LogLevel == LogLevelHigh {
 			c.Printf("CheckConnection: %s(%d)\n", resp.String(), n)
 		}
-	}
+		return false
+	})
+	c.ccTimer.Start()
 }
 
 func (c *Connection) updated(addr *net.UDPAddr, header protocol.Header) bool {
-
-	c.Lock()
-	c.Connected = true
-	c.Unlock()
 
 	if !c.Equals(header) || !strings.EqualFold(c.IpAddress.String(), addr.String()) /*!c.IpAddress.IP.Equal(addr.IP)*/ {
 		c.Hostname = header.Hostname
@@ -92,8 +92,8 @@ func (c *Connection) Equals(header protocol.Header) bool {
 }
 
 func (c *Connection) disconnect() {
-	c.disconnectTimer.Stop()
-	c.checkConnectionTimer.Stop()
+	c.dTimer.Stop()
+	c.ccTimer.Stop()
 	t := time.Now()
 	c.DisconnectTime = &t
 	//c.UDPConn.Close()

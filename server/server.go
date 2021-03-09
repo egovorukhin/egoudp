@@ -26,7 +26,7 @@ type Server struct {
 	*log.Logger
 	Config
 	Started            bool
-	Router             sync.Map
+	Routers            sync.Map
 	handleStart        HandleServer
 	handleStop         HandleServer
 	handleConnected    HandleConnection
@@ -50,7 +50,7 @@ const (
 
 type IServer interface {
 	GetConnections() map[string]*Connection
-	GetRoutes() map[string]*Route
+	GetRoutes() map[string]*Router
 	SetLogger(out io.Writer, prefix string, flag int)
 	Start() error
 	Stop()
@@ -138,24 +138,24 @@ func (s *Server) Start() (err error) {
 func (s *Server) newConnection(addr *net.UDPAddr, header protocol.Header) *Connection {
 
 	connection := &Connection{
-		Server:          s,
-		Hostname:        header.Hostname,
-		IpAddress:       addr,
-		Domain:          header.Domain,
-		Login:           header.Login,
-		ConnectTime:     time.Now(),
-		DisconnectTime:  nil,
-		Version:         header.Version,
-		RWMutex:         sync.RWMutex{},
-		Connected:       true,
-		disconnectTimer: nil,
+		Server:         s,
+		Hostname:       header.Hostname,
+		IpAddress:      addr,
+		Domain:         header.Domain,
+		Login:          header.Login,
+		ConnectTime:    time.Now(),
+		DisconnectTime: nil,
+		Version:        header.Version,
+		RWMutex:        sync.RWMutex{},
+		Connected:      true,
+		dTimer:         nil,
 	}
 	//Запускаем таймер который будет удалять
 	//коннект при отсутствии прилетающих пакетов
 	//connection.done = make(chan bool)
-	go connection.startDisconnectTimer(s.DisconnectTimeout)
+	go connection.startDTimer(s.DisconnectTimeout)
 	//Таймер отправки активности сервера
-	go connection.startCheckConnectionTimer(s.CheckConnectionTimeout)
+	go connection.startCCTimer(s.CheckConnectionTimeout)
 
 	return connection
 }
@@ -248,11 +248,15 @@ func (s *Server) setConnection(addr *net.UDPAddr, packet *protocol.Packet) (conn
 		packet.Header.Event = protocol.EventConnected
 	}
 
+	conn.Lock()
+	conn.Connected = true
+	conn.Unlock()
+
 	return conn
 }
 
 func (s *Server) SetRoute(path string, method protocol.Methods, handler FuncHandler) {
-	s.Router.Store(path, &Route{
+	s.Routers.Store(path, &Router{
 		Path:    path,
 		Method:  method,
 		Handler: handler,
@@ -260,9 +264,9 @@ func (s *Server) SetRoute(path string, method protocol.Methods, handler FuncHand
 }
 
 func (s *Server) handleFuncRoute(c *Connection, resp protocol.IResponse, req protocol.Request) {
-	v, ok := s.Router.Load(req.Path)
+	v, ok := s.Routers.Load(req.Path)
 	if ok {
-		route := v.(*Route)
+		route := v.(*Router)
 		if route.Method != req.Method {
 			resp.Error([]byte(fmt.Sprintf("Метод запроса не соответствует маршруту [%s]", route.Path)))
 			return
@@ -309,10 +313,10 @@ func (s *Server) GetConnections() (connections map[string]*Connection) {
 	return
 }
 
-func (s *Server) GetRoutes() (routes map[string]*Route) {
-	routes = map[string]*Route{}
-	s.Connections.Range(func(key, value interface{}) bool {
-		routes[key.(string)] = value.(*Route)
+func (s *Server) GetRoutes() (routes map[string]*Router) {
+	routes = map[string]*Router{}
+	s.Routers.Range(func(key, value interface{}) bool {
+		routes[key.(string)] = value.(*Router)
 		return true
 	})
 	return
@@ -327,5 +331,17 @@ func (s *Server) Stop() {
 		conn.Lock()
 		conn.Connected = false
 		conn.Unlock()
+		resp := &protocol.Response{
+			StatusCode: protocol.StatusCodeOK,
+			Event:      protocol.EventDisconnect,
+		}
+		n, err := conn.Send(resp)
+		if err != nil {
+			conn.Println(err)
+			continue
+		}
+		if conn.LogLevel == LogLevelHigh {
+			conn.Printf("CheckConnection: %s(%d)\n", resp.String(), n)
+		}
 	}
 }
