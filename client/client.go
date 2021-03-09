@@ -214,6 +214,13 @@ func (c *Client) handleBufferParse(buffer []byte) error {
 		c.Lock()
 		c.Connected = false
 		c.Unlock()
+
+		c.timer.Stop()
+
+		if c.handleDisconnected != nil {
+			go c.handleDisconnected(c)
+		}
+
 		break
 	case protocol.EventCheckConnection:
 		//событие проверки активности сервера
