@@ -17,6 +17,8 @@ import (
 const udp = "udp"
 
 //События
+type HandleStart func(s *Server)
+type HandleStop func(s *Server)
 type HandleConnected func(c *Connection)
 type HandleDisconnected func(c *Connection)
 
@@ -27,6 +29,8 @@ type Server struct {
 	Config
 	Started            bool
 	Router             sync.Map
+	handleStart        HandleStart
+	handleStop         HandleStop
 	handleConnected    HandleConnected
 	handleDisconnected HandleDisconnected
 }
@@ -54,6 +58,8 @@ type IServer interface {
 	Stop() error
 	Send(route string, resp *protocol.Response) (int, error)
 	SetRoute(path string, method protocol.Methods, handler FuncHandler)
+	HandleStart(handler HandleStart)
+	HandleStop(handler HandleStop)
 	HandleConnected(handler HandleConnected)
 	HandleDisconnected(handler HandleDisconnected)
 }
@@ -84,6 +90,8 @@ func (s *Server) Start() (err error) {
 	}
 
 	go func() {
+
+		defer s.listener.Close()
 
 		for {
 
@@ -252,6 +260,14 @@ func (s *Server) handleFuncRoute(c *Connection, resp protocol.IResponse, req pro
 	}
 }
 
+func (s *Server) HandleStart(handler HandleStart) {
+	s.handleStart = handler
+}
+
+func (s *Server) HandleStop(handler HandleStop) {
+	s.handleStop = handler
+}
+
 func (s *Server) HandleConnected(handler HandleConnected) {
 	s.handleConnected = handler
 }
@@ -274,6 +290,7 @@ func (s *Server) Send(hostname string, response *protocol.Response) (n int, err 
 }
 
 func (s *Server) GetConnections() (connections map[string]*Connection) {
+	connections = map[string]*Connection{}
 	s.Connections.Range(func(key, value interface{}) bool {
 		connections[key.(string)] = value.(*Connection)
 		return true
@@ -282,6 +299,7 @@ func (s *Server) GetConnections() (connections map[string]*Connection) {
 }
 
 func (s *Server) GetRoutes() (routes map[string]*Route) {
+	routes = map[string]*Route{}
 	s.Connections.Range(func(key, value interface{}) bool {
 		routes[key.(string)] = value.(*Route)
 		return true
@@ -290,9 +308,13 @@ func (s *Server) GetRoutes() (routes map[string]*Route) {
 }
 
 func (s *Server) Stop() error {
-	s.Started = false
+	s.handleStop(s)
 	for _, conn := range s.GetConnections() {
 		conn.disconnect()
 	}
-	return s.listener.Close()
+	s.Started = false
+	if s.listener != nil {
+		return s.listener.Close()
+	}
+	return errors.New("Невозможно остановить сервер, он не был запущен. Используйте Start для запуска.")
 }

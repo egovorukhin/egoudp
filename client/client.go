@@ -23,6 +23,8 @@ type QItem struct {
 }
 
 //События
+type HandleStart func(c *Client)
+type HandleStop func(c *Client)
 type HandleConnected func(c *Client)
 type HandleDisconnected func(c *Client)
 type HandleCheckConnection func(c *Client)
@@ -38,6 +40,8 @@ type Client struct {
 	queue                  sync.Map
 	checkConnectionTimeout int
 	checkConnectionTimer   *time.Ticker
+	handleStart            HandleStart
+	handleStop             HandleStop
 	handleConnected        HandleConnected
 	handleDisconnected     HandleDisconnected
 	handleCheckConnection  HandleCheckConnection
@@ -63,6 +67,8 @@ type IClient interface {
 	Stop() error
 	SetLogger(out io.Writer, prefix string, flag int)
 	Send(req *protocol.Request) (*protocol.Response, error)
+	HandleStart(handler HandleStart)
+	HandleStop(handler HandleStop)
 	HandleConnected(handler HandleConnected)
 	HandleDisconnected(handler HandleDisconnected)
 	HandleCheckConnection(handler HandleCheckConnection)
@@ -312,8 +318,16 @@ func (c *Client) HandleCheckConnection(handler HandleCheckConnection) {
 	c.handleCheckConnection = handler
 }
 
+func (c *Client) HandleStart(handler HandleStart) {
+	c.handleStart = handler
+}
+
+func (c *Client) HandleStop(handler HandleStop) {
+	c.handleStop = handler
+}
+
 func (c *Client) Stop() error {
-	c.handleDisconnected(c)
+	c.handleStop(c)
 	err := c.Close()
 	if err != nil {
 		return err
