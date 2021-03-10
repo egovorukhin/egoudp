@@ -19,10 +19,10 @@ type Connection struct {
 	ConnectTime    time.Time
 	DisconnectTime *time.Time
 	Version        string
-	sync.RWMutex
+	dTimer         *egotimer.Timer
+	ccTimer        *egotimer.Timer
+	sync.Mutex
 	Connected bool
-	dTimer    *egotimer.Timer
-	ccTimer   *egotimer.Timer
 }
 
 func (c *Connection) startDTimer(timeout int) {

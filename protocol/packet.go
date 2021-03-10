@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"sync"
 )
 
 type Packet struct {
-	Header  Header
+	sync.Mutex
+	Header
 	Request *Request
 }
 
@@ -44,6 +46,18 @@ func New(hostname, login, domain, version string) *Packet {
 			Event:    EventNone,
 		},
 	}
+}
+
+func (p *Packet) SetEvent(event Events) {
+	p.Lock()
+	p.Event = event
+	p.Unlock()
+}
+
+func (p *Packet) GetEvent() Events {
+	p.Lock()
+	defer p.Unlock()
+	return p.Event
 }
 
 func (p *Packet) Marshal() (b []byte) {

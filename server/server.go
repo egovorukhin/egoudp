@@ -146,7 +146,6 @@ func (s *Server) newConnection(addr *net.UDPAddr, header protocol.Header) *Conne
 		ConnectTime:    time.Now(),
 		DisconnectTime: nil,
 		Version:        header.Version,
-		RWMutex:        sync.RWMutex{},
 		Connected:      true,
 		dTimer:         nil,
 	}

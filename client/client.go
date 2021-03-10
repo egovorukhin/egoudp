@@ -29,19 +29,18 @@ type HandleClient func(c *Client)
 type Client struct {
 	Config
 	connection *net.UDPConn
+	packet     *protocol.Packet
 	*log.Logger
-	Started               bool
-	packet                *protocol.Packet
 	queue                 sync.Map
-	timeout               int
 	timer                 *egotimer.Timer
 	handleStart           HandleClient
 	handleStop            HandleClient
 	handleConnected       HandleClient
 	handleDisconnected    HandleClient
 	handleCheckConnection HandleClient
-	sync.RWMutex
+	sync.Mutex
 	Connected bool
+	Started   bool
 }
 
 type Config struct {
@@ -97,7 +96,7 @@ func (c *Client) Start(hostname, login, domain, version string) error {
 	}
 
 	c.packet = protocol.New(hostname, login, domain, version)
-	c.packet.Header.Event = protocol.EventConnected
+	c.packet.Event = protocol.EventConnected
 
 	c.Started = true
 
@@ -116,17 +115,15 @@ func (c *Client) send() {
 
 	for {
 
-		//Пробегаемся по очереди и заполняем Request
+		//Пробегаемся по очереди и заполняем Request,
+		//false - выходим из цикла, true - продолжаем крутить
 		c.queue.Range(func(key, value interface{}) bool {
 			item := value.(*QItem)
 			if !item.Sent {
-				c.Lock()
 				c.packet.Request = item.Request
-				c.Unlock()
 				item.Sent = true
 				return false
 			}
-
 			return true
 		})
 
@@ -143,12 +140,10 @@ func (c *Client) send() {
 		//Очищаем Request
 		c.packet.Request = nil
 
-		c.RLock()
-		if c.packet.Header.Event == protocol.EventDisconnect {
+		if c.packet.GetEvent() == protocol.EventDisconnect {
 			c.Started = false
 			break
 		}
-		c.RUnlock()
 
 		time.Sleep(time.Second * 1)
 	}
@@ -201,11 +196,11 @@ func (c *Client) handleBufferParse(buffer []byte) error {
 			go c.handleConnected(c)
 		}
 		if resp.Data != nil {
-			c.timeout, err = strconv.Atoi(string(resp.Data))
+			timeout, err := strconv.Atoi(string(resp.Data))
 			if err != nil {
 				return err
 			}
-			go c.startTimer(c.timeout)
+			go c.startTimer(timeout)
 		}
 		break
 	//Команда на отключение клиента
@@ -236,11 +231,9 @@ func (c *Client) handleBufferParse(buffer []byte) error {
 		break
 	}
 
-	c.Lock()
-	if c.packet.Header.Event != protocol.EventNone {
-		c.packet.Header.Event = protocol.EventNone
+	if c.packet.GetEvent() != protocol.EventNone {
+		c.packet.SetEvent(protocol.EventNone)
 	}
-	c.Unlock()
 
 	go func() {
 		v, ok := c.queue.Load(resp.Id)
@@ -279,19 +272,19 @@ func (c *Client) wait(id string, resp chan *protocol.Response, err chan error) {
 		err <- errors.New("Клиент не подключен к серверу")
 	}
 
-	i := 0
-	go func() {
-		for {
-			if i == c.Timeout {
-				return
-			}
-			time.Sleep(1 * time.Second)
-			i++
+	count := 0
+	timer := egotimer.New(1*time.Second, func(t time.Time) bool {
+		if count == c.Timeout {
+			return true
 		}
-	}()
+		count++
+		return false
+	})
+	defer timer.Stop()
+	go timer.Start()
 
 	received := false
-	for i < c.Timeout && !received {
+	for count < c.Timeout && !received {
 		c.queue.Range(func(key, value interface{}) bool {
 			item := value.(*QItem)
 			if key == id && item.Received {
@@ -311,21 +304,23 @@ func (c *Client) wait(id string, resp chan *protocol.Response, err chan error) {
 }
 
 func (c *Client) startTimer(timeout int) {
-
 	c.timer = egotimer.New(time.Duration(timeout)*time.Second, func(t time.Time) bool {
+		if !c.Started {
+			return true
+		}
 		c.Lock()
+		defer c.Unlock()
 		if !c.Connected {
-			c.packet.Header.Event = protocol.EventConnected
-			c.Unlock()
+			c.packet.SetEvent(protocol.EventConnected)
 			if c.handleDisconnected != nil {
 				go c.handleDisconnected(c)
 			}
 			return true
 		}
 		c.Connected = false
-		c.Unlock()
 		return false
 	})
+	defer c.timer.Stop()
 	c.timer.Start()
 }
 
@@ -357,9 +352,8 @@ func (c *Client) Stop() {
 	if c.handleStop != nil {
 		c.handleStop(c)
 	}
-	c.timer.Stop()
 	c.Lock()
 	c.Connected = false
-	c.packet.Header.Event = protocol.EventDisconnect
 	c.Unlock()
+	c.packet.SetEvent(protocol.EventDisconnect)
 }
