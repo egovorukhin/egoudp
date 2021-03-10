@@ -20,9 +20,9 @@ func main() {
 		LogLevel:   0,
 	}
 	clt := client.New(config)
-	clt.HandleConnected(OnConnected)
-	clt.HandleDisconnected(OnDisconnected)
-	clt.HandleCheckConnection(OnCheckConnection)
+	clt.OnConnected(OnConnected)
+	clt.OnDisconnected(OnDisconnected)
+	clt.OnCheckConnection(OnCheckConnection)
 	hostname, err := os.Hostname()
 	if err != nil {
 		panic(err)

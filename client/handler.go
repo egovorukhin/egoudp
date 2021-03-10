@@ -11,33 +11,60 @@ type Handler struct {
 	OnCheckConnection HandleClient
 }
 
-type IHandler interface {
-	HandleStart(s *Server)
-	HandleStop(s *Server)
-	HandleConnected(c *Connection)
-	HandleDisconnected(c *Connection)
-}
-
-func (h *Handler) HandleStart(s *Server) {
+func (h *Handler) HandleStart(c *Client) {
 	if h.OnStart != nil {
-		go h.OnStart(s)
+		go h.OnStart(c)
 	}
 }
 
-func (h *Handler) HandleStop(s *Server) {
+func (h *Handler) HandleStop(c *Client) {
 	if h.OnStop != nil {
-		go h.OnStop(s)
+		go h.OnStop(c)
 	}
 }
 
-func (h *Handler) HandleConnected(c *Connection) {
+func (h *Handler) HandleConnected(c *Client) {
 	if h.OnConnected != nil {
 		go h.OnConnected(c)
 	}
 }
 
-func (h *Handler) HandleDisconnected(c *Connection) {
+func (h *Handler) HandleDisconnected(c *Client) {
 	if h.OnDisconnected != nil {
 		go h.OnDisconnected(c)
 	}
+}
+
+func (h *Handler) HandleCheckConnection(c *Client) {
+	if h.OnCheckConnection != nil {
+		go h.OnCheckConnection(c)
+	}
+}
+
+type IHandler interface {
+	HandleStart(c *Client)
+	HandleStop(c *Client)
+	HandleConnected(c *Client)
+	HandleDisconnected(c *Client)
+	HandleCheckConnection(c *Client)
+}
+
+func OnStart(handler IHandler, c *Client) {
+	handler.HandleStart(c)
+}
+
+func OnStop(handler IHandler, c *Client) {
+	handler.HandleStop(c)
+}
+
+func OnConnected(handler IHandler, c *Client) {
+	handler.HandleConnected(c)
+}
+
+func OnDisconnected(handler IHandler, c *Client) {
+	handler.HandleDisconnected(c)
+}
+
+func OnCheckConnection(handler IHandler, c *Client) {
+	handler.HandleDisconnected(c)
 }

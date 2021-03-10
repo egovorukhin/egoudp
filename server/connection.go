@@ -59,7 +59,7 @@ func (c *Connection) startCCTimer(timeout int) {
 		c.SendEvent(protocol.EventCheckConnection)
 		return false
 	})
-	c.ccTimer.Start()
+	go c.ccTimer.Start()
 }
 
 func (c *Connection) updated(addr *net.UDPAddr, header protocol.Header) bool {

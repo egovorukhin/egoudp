@@ -32,7 +32,7 @@ type Client struct {
 	Connected  Connected
 	Started    Started
 	*log.Logger
-	Handler
+	Handler *Handler
 }
 
 type Started struct {
@@ -89,11 +89,11 @@ type IClient interface {
 	Stop()
 	SetLogger(out io.Writer, prefix string, flag int)
 	Send(req *protocol.Request) (*protocol.Response, error)
-	HandleStart(handler HandleClient)
-	HandleStop(handler HandleClient)
-	HandleConnected(handler HandleClient)
-	HandleDisconnected(handler HandleClient)
-	HandleCheckConnection(handler HandleClient)
+	OnStart(handler HandleClient)
+	OnStop(handler HandleClient)
+	OnConnected(handler HandleClient)
+	OnDisconnected(handler HandleClient)
+	OnCheckConnection(handler HandleClient)
 }
 
 const udp = "udp"
@@ -102,7 +102,7 @@ func New(config Config) IClient {
 	return &Client{
 		Config:  config,
 		Logger:  log.New(os.Stdout, "", log.Ldate|log.Ltime),
-		Handler: Handler{},
+		Handler: new(Handler),
 	}
 }
 
@@ -131,6 +131,8 @@ func (c *Client) Start(hostname, login, domain, version string) error {
 	go c.send()
 	//прием пакетов
 	go c.receive()
+
+	OnStart(c.Handler, c)
 
 	return nil
 }
@@ -216,9 +218,7 @@ func (c *Client) handleBufferParse(buffer []byte) error {
 	case protocol.EventConnected:
 		//событие подключения клиента
 		c.Connected.Set(true)
-		if c.handleConnected != nil {
-			go c.handleConnected(c)
-		}
+		OnConnected(c.Handler, c)
 		if resp.Data != nil {
 			timeout, err := strconv.Atoi(string(resp.Data))
 			if err != nil {
@@ -231,23 +231,14 @@ func (c *Client) handleBufferParse(buffer []byte) error {
 	case protocol.EventDisconnect:
 		//событие отключения клиента
 		c.Connected.Set(false)
-
 		c.stopTimer()
-
-		if c.handleDisconnected != nil {
-			go c.handleDisconnected(c)
-		}
-
+		OnDisconnected(c.Handler, c)
 		return nil
 	case protocol.EventCheckConnection:
 		//событие проверки активности сервера
 		c.Connected.Set(true)
-
-		go c.timer.Restart()
-
-		if c.handleCheckConnection != nil {
-			go c.handleCheckConnection(c)
-		}
+		c.restartTimer()
+		OnCheckConnection(c.Handler, c)
 		break
 	}
 
@@ -323,58 +314,32 @@ func (c *Client) wait(id string, resp chan *protocol.Response, err chan error) {
 	err <- errors.New("Вышло время ожидания запроса")
 }
 
-func (c *Client) startTimer(timeout int) {
-	c.timer = egotimer.New(time.Duration(timeout)*time.Second, func(t time.Time) bool {
-		if !c.Started.Get() {
-			return true
-		}
-		if !c.Connected.Get() {
-			c.packet.SetEvent(protocol.EventConnected)
-			if c.handleDisconnected != nil {
-				go c.handleDisconnected(c)
-			}
-			return true
-		}
-		c.Connected.Set(false)
-		return false
-	})
-	go c.timer.Start()
-}
-
-func (c *Client) stopTimer() {
-	if c.timer != nil {
-		c.timer.Stop()
-	}
-}
-
 func (c *Client) id() string {
 	return strings.Replace(uuid.New().String(), "-", "", -1)
 }
 
-func (c *Client) HandleConnected(handler HandleClient) {
-	c.handleConnected = handler
+func (c *Client) OnConnected(handler HandleClient) {
+	c.Handler.OnConnected = handler
 }
 
-func (c *Client) HandleDisconnected(handler HandleClient) {
-	c.handleDisconnected = handler
+func (c *Client) OnDisconnected(handler HandleClient) {
+	c.Handler.OnDisconnected = handler
 }
 
-func (c *Client) HandleCheckConnection(handler HandleClient) {
-	c.handleCheckConnection = handler
+func (c *Client) OnCheckConnection(handler HandleClient) {
+	c.Handler.OnCheckConnection = handler
 }
 
-func (c *Client) HandleStart(handler HandleClient) {
-	c.handleStart = handler
+func (c *Client) OnStart(handler HandleClient) {
+	c.Handler.OnStart = handler
 }
 
-func (c *Client) HandleStop(handler HandleClient) {
-	c.handleStop = handler
+func (c *Client) OnStop(handler HandleClient) {
+	c.Handler.OnStop = handler
 }
 
 func (c *Client) Stop() {
-	if c.handleStop != nil {
-		c.handleStop(c)
-	}
+	OnStop(c.Handler, c)
 	c.timer.Stop()
 	c.Started.Set(false)
 	c.Connected.Set(false)
