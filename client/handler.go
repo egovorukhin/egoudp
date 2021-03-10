@@ -66,5 +66,5 @@ func OnDisconnected(handler IHandler, c *Client) {
 }
 
 func OnCheckConnection(handler IHandler, c *Client) {
-	handler.HandleDisconnected(c)
+	handler.HandleCheckConnection(c)
 }
