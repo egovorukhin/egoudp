@@ -16,21 +16,14 @@ import (
 
 const udp = "udp"
 
-//События
-type HandleServer func(s *Server)
-type HandleConnection func(c *Connection)
-
 type Server struct {
 	Connections sync.Map
 	listener    *net.UDPConn
+	Started     Started
+	Router      sync.Map
+	Handler     *Handler
 	*log.Logger
 	Config
-	Started            Started
-	Router             sync.Map
-	handleStart        HandleServer
-	handleStop         HandleServer
-	handleConnected    HandleConnection
-	handleDisconnected HandleConnection
 }
 
 type Config struct {
@@ -73,10 +66,10 @@ type IServer interface {
 	Stop() error
 	Send(route string, resp *protocol.Response) (int, error)
 	SetRoute(path string, method protocol.Methods, handler FuncHandler)
-	HandleStart(handler HandleServer)
-	HandleStop(handler HandleServer)
-	HandleConnected(handler HandleConnection)
-	HandleDisconnected(handler HandleConnection)
+	OnStart(handler HandleServer)
+	OnStop(handler HandleServer)
+	OnConnected(handler HandleConnection)
+	OnDisconnected(handler HandleConnection)
 }
 
 func New(config Config) IServer {
@@ -85,6 +78,7 @@ func New(config Config) IServer {
 		Config:      config,
 		Started:     Started{},
 		Logger:      log.New(os.Stdout, "", log.Ldate|log.Ltime),
+		Handler:     new(Handler),
 	}
 }
 
@@ -143,9 +137,7 @@ func (s *Server) Start() (err error) {
 
 	s.Started.Set(true)
 
-	if s.handleStart != nil {
-		go s.handleStart(s)
-	}
+	OnStart(s.Handler, s)
 
 	return
 }
@@ -214,9 +206,7 @@ func (s *Server) receive(addr *net.UDPAddr, packet *protocol.Packet) {
 		}
 
 		//событие подключения клиента
-		if s.handleConnected != nil {
-			go s.handleConnected(conn)
-		}
+		OnConnected(s.Handler, conn)
 		//отправляем клиенту ответ,
 		//передаем время для таймера проверки активности сервера
 		//прибавляем 5 сек, чтобы клиент ждал проверку дольше
@@ -284,22 +274,6 @@ func (s *Server) handleFuncRoute(c *Connection, resp protocol.IResponse, req pro
 	}
 }
 
-func (s *Server) HandleStart(handler HandleServer) {
-	s.handleStart = handler
-}
-
-func (s *Server) HandleStop(handler HandleServer) {
-	s.handleStop = handler
-}
-
-func (s *Server) HandleConnected(handler HandleConnection) {
-	s.handleConnected = handler
-}
-
-func (s *Server) HandleDisconnected(handler HandleConnection) {
-	s.handleDisconnected = handler
-}
-
 func (s *Server) Send(hostname string, response *protocol.Response) (n int, err error) {
 
 	//Проверяем на существование подключение
@@ -331,10 +305,24 @@ func (s *Server) GetRoutes() (routes map[string]*Route) {
 	return
 }
 
+func (s *Server) OnStart(handler HandleServer) {
+	s.Handler.OnStart = handler
+}
+
+func (s *Server) OnStop(handler HandleServer) {
+	s.Handler.OnStop = handler
+}
+
+func (s *Server) OnConnected(handler HandleConnection) {
+	s.Handler.OnConnected = handler
+}
+
+func (s *Server) OnDisconnected(handler HandleConnection) {
+	s.Handler.OnDisconnected = handler
+}
+
 func (s *Server) Stop() error {
-	if s.handleStop != nil {
-		go s.handleStop(s)
-	}
+	OnStop(s.Handler, s)
 	s.Started.Set(false)
 	for _, conn := range s.GetConnections() {
 		conn.Connected.Set(false)

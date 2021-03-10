@@ -96,9 +96,7 @@ func (c *Connection) disconnect() {
 	//Удаляем подключение из списка
 	c.deleteConnection(c.Hostname)
 	//событие при отключении
-	if c.handleDisconnected != nil {
-		c.handleDisconnected(c)
-	}
+	OnDisconnected(c.Handler, c)
 }
 
 func (c *Connection) Send(resp protocol.IResponse) (int, error) {

@@ -89,11 +89,11 @@ func main() {
 }
 
 func OnConnected(c *client.Client) {
-	fmt.Printf("Connected: %s\n", time.Now().Format("15:04:05"))
+	fmt.Printf("OnConnected: %s\n", time.Now().Format("15:04:05"))
 }
 
 func OnDisconnected(c *client.Client) {
-	fmt.Printf("Disconnected: %s\n", time.Now().Format("15:04:05"))
+	fmt.Printf("OnDisconnected: %s\n", time.Now().Format("15:04:05"))
 }
 
 func OnCheckConnection(c *client.Client) {

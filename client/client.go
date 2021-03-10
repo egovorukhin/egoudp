@@ -23,23 +23,16 @@ type QItem struct {
 	Received bool
 }
 
-//События
-type HandleClient func(c *Client)
-
 type Client struct {
 	Config
-	connection            *net.UDPConn
-	packet                *protocol.Packet
-	queue                 sync.Map
-	timer                 *egotimer.Timer
-	handleStart           HandleClient
-	handleStop            HandleClient
-	handleConnected       HandleClient
-	handleDisconnected    HandleClient
-	handleCheckConnection HandleClient
-	Connected             Connected
-	Started               Started
+	connection *net.UDPConn
+	packet     *protocol.Packet
+	queue      sync.Map
+	timer      *egotimer.Timer
+	Connected  Connected
+	Started    Started
 	*log.Logger
+	Handler
 }
 
 type Started struct {
@@ -107,8 +100,9 @@ const udp = "udp"
 
 func New(config Config) IClient {
 	return &Client{
-		Config: config,
-		Logger: log.New(os.Stdout, "", log.Ldate|log.Ltime),
+		Config:  config,
+		Logger:  log.New(os.Stdout, "", log.Ldate|log.Ltime),
+		Handler: Handler{},
 	}
 }
 
@@ -238,7 +232,7 @@ func (c *Client) handleBufferParse(buffer []byte) error {
 		//событие отключения клиента
 		c.Connected.Set(false)
 
-		c.timer.Stop()
+		c.stopTimer()
 
 		if c.handleDisconnected != nil {
 			go c.handleDisconnected(c)
@@ -345,6 +339,12 @@ func (c *Client) startTimer(timeout int) {
 		return false
 	})
 	go c.timer.Start()
+}
+
+func (c *Client) stopTimer() {
+	if c.timer != nil {
+		c.timer.Stop()
+	}
 }
 
 func (c *Client) id() string {

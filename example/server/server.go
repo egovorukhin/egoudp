@@ -18,8 +18,8 @@ func main() {
 		LogLevel:               0,
 	}
 	srv := server.New(config)
-	srv.HandleConnected(OnConnected)
-	srv.HandleDisconnected(OnDisconnected)
+	srv.OnConnected(OnConnected)
+	srv.OnDisconnected(OnDisconnected)
 	srv.SetRoute("hi", protocol.MethodNone, Hi)
 	srv.SetRoute("winter", protocol.MethodGet, Winter)
 
@@ -57,11 +57,11 @@ func main() {
 }
 
 func OnConnected(c *server.Connection) {
-	fmt.Printf("Connected: %s(%s): %s\n", c.Hostname, c.IpAddress.String(), c.ConnectTime.Format("15:04:05"))
+	fmt.Printf("OnConnected: %s(%s): %s\n", c.Hostname, c.IpAddress.String(), c.ConnectTime.Format("15:04:05"))
 }
 
 func OnDisconnected(c *server.Connection) {
-	fmt.Printf("Disconnected: %s(%s) - %s\n", c.Hostname, c.IpAddress.String(), c.DisconnectTime.Format("15:04:05"))
+	fmt.Printf("OnDisconnected: %s(%s) - %s\n", c.Hostname, c.IpAddress.String(), c.DisconnectTime.Format("15:04:05"))
 }
 
 func Hi(c *server.Connection, resp protocol.IResponse, req protocol.Request) {
