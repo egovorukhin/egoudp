@@ -43,12 +43,12 @@ go get -u github.com/egovorukhin/egoudp
 Можем определить функции для событий подключения/отключения клиентов, главное соблюсти вид функций.
 
 * **Маршруты**
-```
+```golang
   srv.SetRoute("hi", protocol.MethodNone, Hi)
   srv.SetRoute("winter", protocol.MethodGet, Winter)
 ```
 Устанавливаем маршруты по аналогии с http протоколом. `path` - путь для определения маршрутв. `method` - метод для определенного маршрута. `handler` - функция которая выполнится при запросе от клиента по определенному пути маршрута.
-```
+```golang
   func Hi(c *server.Connection, resp protocol.IResponse, req protocol.Request) {
       resp.SetData(req.Data)
       fmt.Println(string(req.Data))
@@ -71,7 +71,7 @@ go get -u github.com/egovorukhin/egoudp
 Определяем функции для маршрутов вида `func(c *Connection, resp protocol.IResponse, req protocol.Request)`. `c *Connection` - передается подключение, которое хранит всю информация об этом подключении. `resp protocol.IResponse` - интерфейс который мы используем для заполнения ответа на запрос. `req protocol.Request` - запрос от клиента.
 
 * **Логирование**
-```
+```golang
   f, _ := os.Open(path)
   srv.SetLogger(f, "", log.Ldate|log.Ltime)
 ```
@@ -79,13 +79,13 @@ go get -u github.com/egovorukhin/egoudp
 
 * **Запуск**
 
-```
+```golang
   _ = srv.Start()
 ```
 `Start()` - запускает сервер, возвращает ошибку `error`
 
 * **Остановка**
-```
+```golang
   _ = srv.Stop()
 ```
 `Stop()` - остановка сервера, возвращает ошибку `error`
@@ -95,7 +95,7 @@ go get -u github.com/egovorukhin/egoudp
 ### Клиент
 
 * **Конфигурация**
-```
+```golang
   import "github.com/egovorukhin/egoudp/client"
 
   config := client.Config{
@@ -126,14 +126,14 @@ go get -u github.com/egovorukhin/egoudp
 Можем определить функции для событий подключения/отключения клиентов, главное соблюсти вид функций.
 
 * **Запуск**
-```
+```golang
   hostname, _ := os.Hostname()
   _ = clt.Start(hostname, "login", "domain.com", "1.0.0")
 ```
 `Start` - запуск клиента. Необходимо передать обязательные аргументы. `hostname` - имя машины где стоит клиент. `login` - учетная запись под которой запущен клиент. `domain` - домен под которой запущен клиент. `version` - версия вашего  разрабатываемого приложения. Возвращает `error`.
 
 * **Запросы**
-```
+```golang
   req := protocol.NewRequest("hi", protocol.MethodNone).SetData("json", []byte(`{"message": "Hello, World!"}`))
   resp, _ := c.Send(req)
   fmt.Println(resp.Data)
@@ -151,14 +151,17 @@ go get -u github.com/egovorukhin/egoudp
 `NewRequest` - инициализация запроса. `SetData` - передаем вид данных и сами данные в `[]byte`. `Send(req *Request)` - отправка запроса на сервер, возвращает `*Response, error`.
 
 * **Логирование**
-```
+```golang
   f, _ := os.Open(path)
   clt.SetLogger(f, "", log.Ldate|log.Ltime)
 ```
 Можно переопределить `Writer` для `log.Logger`, по умолчанию вывод будет происходить на `os.Stdout`.
 
 * **Остановка**
-```
+```golang
   _ = clt.Stop()
 ```
 `Stop()` - остановка клиента, возвращает ошибку `error`.
+
+## Примеры
+Примеры можно разобрать [тут](https://github.com/egovorukhin/egoudp/tree/master/example)
