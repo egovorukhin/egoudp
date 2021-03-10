@@ -28,9 +28,8 @@ type HandleClient func(c *Client)
 
 type Client struct {
 	Config
-	connection *net.UDPConn
-	packet     *protocol.Packet
-	*log.Logger
+	connection            *net.UDPConn
+	packet                *protocol.Packet
 	queue                 sync.Map
 	timer                 *egotimer.Timer
 	handleStart           HandleClient
@@ -38,9 +37,43 @@ type Client struct {
 	handleConnected       HandleClient
 	handleDisconnected    HandleClient
 	handleCheckConnection HandleClient
+	Connected             Connected
+	Started               Started
+	*log.Logger
+}
+
+type Started struct {
 	sync.Mutex
-	Connected bool
-	Started   bool
+	value bool
+}
+
+func (c *Started) Set(b bool) {
+	c.Lock()
+	c.value = b
+	c.Unlock()
+}
+
+func (c *Started) Get() bool {
+	c.Lock()
+	defer c.Unlock()
+	return c.value
+}
+
+type Connected struct {
+	sync.Mutex
+	value bool
+}
+
+func (c *Connected) Set(b bool) {
+	c.Lock()
+	c.value = b
+	c.Unlock()
+}
+
+func (c *Connected) Get() bool {
+	c.Lock()
+	defer c.Unlock()
+	return c.value
 }
 
 type Config struct {
@@ -98,7 +131,7 @@ func (c *Client) Start(hostname, login, domain, version string) error {
 	c.packet = protocol.New(hostname, login, domain, version)
 	c.packet.Event = protocol.EventConnected
 
-	c.Started = true
+	c.Started.value = true
 
 	//отправка пакетов
 	go c.send()
@@ -141,7 +174,6 @@ func (c *Client) send() {
 		c.packet.Request = nil
 
 		if c.packet.GetEvent() == protocol.EventDisconnect {
-			c.Started = false
 			break
 		}
 
@@ -156,7 +188,7 @@ func (c *Client) receive() {
 
 	for {
 
-		if !c.Started {
+		if !c.Started.Get() {
 			break
 		}
 
@@ -189,9 +221,7 @@ func (c *Client) handleBufferParse(buffer []byte) error {
 	//Отправляем команду о подключении клиенту
 	case protocol.EventConnected:
 		//событие подключения клиента
-		c.Lock()
-		c.Connected = true
-		c.Unlock()
+		c.Connected.Set(true)
 		if c.handleConnected != nil {
 			go c.handleConnected(c)
 		}
@@ -206,9 +236,7 @@ func (c *Client) handleBufferParse(buffer []byte) error {
 	//Команда на отключение клиента
 	case protocol.EventDisconnect:
 		//событие отключения клиента
-		c.Lock()
-		c.Connected = false
-		c.Unlock()
+		c.Connected.Set(false)
 
 		c.timer.Stop()
 
@@ -219,9 +247,7 @@ func (c *Client) handleBufferParse(buffer []byte) error {
 		break
 	case protocol.EventCheckConnection:
 		//событие проверки активности сервера
-		c.Lock()
-		c.Connected = true
-		c.Unlock()
+		c.Connected.Set(true)
 
 		go c.timer.Restart()
 
@@ -267,7 +293,7 @@ func (c *Client) Send(req *protocol.Request) (*protocol.Response, error) {
 //Если в течении timeout не придет ответ, то возвращаем nil
 func (c *Client) wait(id string, resp chan *protocol.Response, err chan error) {
 
-	if !c.Connected {
+	if !c.Connected.Get() {
 		resp <- nil
 		err <- errors.New("Клиент не подключен к серверу")
 	}
@@ -305,19 +331,17 @@ func (c *Client) wait(id string, resp chan *protocol.Response, err chan error) {
 
 func (c *Client) startTimer(timeout int) {
 	c.timer = egotimer.New(time.Duration(timeout)*time.Second, func(t time.Time) bool {
-		if !c.Started {
+		if !c.Started.Get() {
 			return true
 		}
-		c.Lock()
-		defer c.Unlock()
-		if !c.Connected {
+		if !c.Connected.Get() {
 			c.packet.SetEvent(protocol.EventConnected)
 			if c.handleDisconnected != nil {
 				go c.handleDisconnected(c)
 			}
 			return true
 		}
-		c.Connected = false
+		c.Connected.Set(false)
 		return false
 	})
 	defer c.timer.Stop()
@@ -352,8 +376,7 @@ func (c *Client) Stop() {
 	if c.handleStop != nil {
 		c.handleStop(c)
 	}
-	c.Lock()
-	c.Connected = false
-	c.Unlock()
+	c.Started.Set(false)
+	c.Connected.Set(false)
 	c.packet.SetEvent(protocol.EventDisconnect)
 }
