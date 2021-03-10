@@ -230,7 +230,7 @@ func (c *Client) handleBufferParse(buffer []byte) error {
 			if err != nil {
 				return err
 			}
-			go c.startTimer(timeout)
+			c.startTimer(timeout)
 		}
 		break
 	//Команда на отключение клиента
@@ -244,7 +244,7 @@ func (c *Client) handleBufferParse(buffer []byte) error {
 			go c.handleDisconnected(c)
 		}
 
-		break
+		return nil
 	case protocol.EventCheckConnection:
 		//событие проверки активности сервера
 		c.Connected.Set(true)
@@ -344,8 +344,7 @@ func (c *Client) startTimer(timeout int) {
 		c.Connected.Set(false)
 		return false
 	})
-	defer c.timer.Stop()
-	c.timer.Start()
+	go c.timer.Start()
 }
 
 func (c *Client) id() string {
@@ -376,6 +375,7 @@ func (c *Client) Stop() {
 	if c.handleStop != nil {
 		c.handleStop(c)
 	}
+	c.timer.Stop()
 	c.Started.Set(false)
 	c.Connected.Set(false)
 	c.packet.SetEvent(protocol.EventDisconnect)

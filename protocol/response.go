@@ -15,7 +15,7 @@ type Response struct {
 }
 
 type IResponse interface {
-	Response() *Response
+	GetID() string
 	OK(data []byte) *Response
 	Error(data []byte) *Response
 	SetData(code StatusCode, data []byte) *Response
@@ -35,8 +35,8 @@ func NewResponse(req *Request, event Events) IResponse {
 	return resp
 }
 
-func (r *Response) Response() *Response {
-	return r
+func (r *Response) GetID() string {
+	return r.Id
 }
 
 func (r *Response) OK(data []byte) *Response {

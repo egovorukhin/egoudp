@@ -14,7 +14,7 @@ func main() {
 		Port:                   5655,
 		BufferSize:             256,
 		DisconnectTimeout:      5,
-		CheckConnectionTimeout: 3,
+		CheckConnectionTimeout: 30,
 		LogLevel:               0,
 	}
 	srv := server.New(config)
@@ -61,7 +61,7 @@ func OnConnected(c *server.Connection) {
 }
 
 func OnDisconnected(c *server.Connection) {
-	fmt.Printf("Disconnected: %s(%s) - %s\n", c.Hostname, c.IpAddress.String(), c.ConnectTime.Format("15:04:05"))
+	fmt.Printf("Disconnected: %s(%s) - %s\n", c.Hostname, c.IpAddress.String(), c.DisconnectTime.Format("15:04:05"))
 }
 
 func Hi(c *server.Connection, resp protocol.IResponse, req protocol.Request) {

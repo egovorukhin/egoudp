@@ -21,11 +21,11 @@ type HandleServer func(s *Server)
 type HandleConnection func(c *Connection)
 
 type Server struct {
-	Connections sync.Map //*Connections
+	Connections sync.Map
 	listener    *net.UDPConn
 	*log.Logger
 	Config
-	Started            bool
+	Started            Started
 	Router             sync.Map
 	handleStart        HandleServer
 	handleStop         HandleServer
@@ -41,6 +41,23 @@ type Config struct {
 	LogLevel               LogLevel
 }
 
+type Started struct {
+	sync.Mutex
+	value bool
+}
+
+func (c *Started) Set(b bool) {
+	c.Lock()
+	c.value = b
+	c.Unlock()
+}
+
+func (c *Started) Get() bool {
+	c.Lock()
+	defer c.Unlock()
+	return c.value
+}
+
 type LogLevel int
 
 const (
@@ -53,7 +70,7 @@ type IServer interface {
 	GetRoutes() map[string]*Route
 	SetLogger(out io.Writer, prefix string, flag int)
 	Start() error
-	Stop()
+	Stop() error
 	Send(route string, resp *protocol.Response) (int, error)
 	SetRoute(path string, method protocol.Methods, handler FuncHandler)
 	HandleStart(handler HandleServer)
@@ -66,7 +83,7 @@ func New(config Config) IServer {
 	return &Server{
 		Connections: sync.Map{},
 		Config:      config,
-		Started:     false,
+		Started:     Started{},
 		Logger:      log.New(os.Stdout, "", log.Ldate|log.Ltime),
 	}
 }
@@ -89,11 +106,9 @@ func (s *Server) Start() (err error) {
 
 	go func() {
 
-		defer s.listener.Close()
-
 		for {
 
-			if !s.Started {
+			if !s.Started.Get() {
 				break
 			}
 
@@ -126,7 +141,7 @@ func (s *Server) Start() (err error) {
 		}
 	}()
 
-	s.Started = true
+	s.Started.Set(true)
 
 	if s.handleStart != nil {
 		go s.handleStart(s)
@@ -137,26 +152,26 @@ func (s *Server) Start() (err error) {
 
 func (s *Server) newConnection(addr *net.UDPAddr, header protocol.Header) *Connection {
 
-	connection := &Connection{
-		Server:         s,
-		Hostname:       header.Hostname,
-		IpAddress:      addr,
-		Domain:         header.Domain,
-		Login:          header.Login,
-		ConnectTime:    time.Now(),
-		DisconnectTime: nil,
-		Version:        header.Version,
-		Connected:      true,
-		dTimer:         nil,
+	conn := &Connection{
+		Server:      s,
+		Hostname:    header.Hostname,
+		IpAddress:   addr,
+		Domain:      header.Domain,
+		Login:       header.Login,
+		ConnectTime: time.Now(),
+		Version:     header.Version,
+		Connected: Connected{
+			value: true,
+		},
 	}
-	//Запускаем таймер который будет удалять
-	//коннект при отсутствии прилетающих пакетов
-	//connection.done = make(chan bool)
-	go connection.startDTimer(s.DisconnectTimeout)
-	//Таймер отправки активности сервера
-	go connection.startCCTimer(s.CheckConnectionTimeout)
 
-	return connection
+	//Запускаем таймер который будет удалять коннект
+	//при отсутствии прилетающих пакетов
+	conn.startDTimer(s.DisconnectTimeout)
+	//Таймер отправки активности сервера
+	conn.startCCTimer(s.CheckConnectionTimeout)
+
+	return conn
 }
 
 func (s *Server) deleteConnection(hostname string) {
@@ -194,7 +209,7 @@ func (s *Server) receive(addr *net.UDPAddr, packet *protocol.Packet) {
 	//Отправляем команду о подключении клиенту
 	case protocol.EventConnected:
 
-		if !conn.Connected {
+		if !conn.Connected.Get() {
 			return
 		}
 
@@ -204,7 +219,7 @@ func (s *Server) receive(addr *net.UDPAddr, packet *protocol.Packet) {
 		}
 		//отправляем клиенту ответ,
 		//передаем время для таймера проверки активности сервера
-		//прибавляем 5 сек, чтобы расклиент ждал проверку дольше
+		//прибавляем 5 сек, чтобы клиент ждал проверку дольше
 		go func() {
 			_, err := conn.Send(resp.OK([]byte(strconv.Itoa(s.CheckConnectionTimeout + 5))))
 			if err != nil {
@@ -215,10 +230,7 @@ func (s *Server) receive(addr *net.UDPAddr, packet *protocol.Packet) {
 	//Команда на отключение клиента
 	case protocol.EventDisconnect:
 		//удаляем подключения из списка
-		//conn.disconnect()
-		conn.Lock()
-		conn.Connected = false
-		conn.Unlock()
+		conn.Connected.Set(false)
 		return
 	}
 
@@ -247,9 +259,7 @@ func (s *Server) setConnection(addr *net.UDPAddr, packet *protocol.Packet) (conn
 		packet.Header.Event = protocol.EventConnected
 	}
 
-	conn.Lock()
-	conn.Connected = true
-	conn.Unlock()
+	conn.Connected.Set(true)
 
 	return conn
 }
@@ -321,26 +331,14 @@ func (s *Server) GetRoutes() (routes map[string]*Route) {
 	return
 }
 
-func (s *Server) Stop() {
-	s.Started = false
+func (s *Server) Stop() error {
 	if s.handleStop != nil {
-		s.handleStop(s)
+		go s.handleStop(s)
 	}
+	s.Started.Set(false)
 	for _, conn := range s.GetConnections() {
-		conn.Lock()
-		conn.Connected = false
-		conn.Unlock()
-		resp := &protocol.Response{
-			StatusCode: protocol.StatusCodeOK,
-			Event:      protocol.EventDisconnect,
-		}
-		n, err := conn.Send(resp)
-		if err != nil {
-			conn.Println(err)
-			continue
-		}
-		if conn.LogLevel == LogLevelHigh {
-			conn.Printf("CheckConnection: %s(%d)\n", resp.String(), n)
-		}
+		conn.Connected.Set(false)
+		conn.disconnect()
 	}
+	return s.listener.Close()
 }

@@ -21,46 +21,42 @@ type Connection struct {
 	Version        string
 	dTimer         *egotimer.Timer
 	ccTimer        *egotimer.Timer
+	Connected      Connected
+}
+
+type Connected struct {
 	sync.Mutex
-	Connected bool
+	value bool
+}
+
+func (c *Connected) Set(b bool) {
+	c.Lock()
+	c.value = b
+	c.Unlock()
+}
+
+func (c *Connected) Get() bool {
+	c.Lock()
+	defer c.Unlock()
+	return c.value
 }
 
 func (c *Connection) startDTimer(timeout int) {
 	c.dTimer = egotimer.New(time.Duration(timeout)*time.Second, func(t time.Time) bool {
-		c.Lock()
-		if !c.Connected {
+		if !c.Connected.Get() {
 			c.disconnect()
 			return true
 		}
-		c.Connected = false
-		c.Unlock()
+		c.Connected.Set(false)
 		return false
 	})
-	c.dTimer.Start()
+	go c.dTimer.Start()
 }
 
 //Стартуем check connection timer
 func (c *Connection) startCCTimer(timeout int) {
 	c.ccTimer = egotimer.New(time.Duration(timeout)*time.Second, func(t time.Time) bool {
-		/*c.RLock()
-		if !c.Connected {
-			return true
-		}
-		c.RUnlock()*/
-
-		resp := &protocol.Response{
-			StatusCode: protocol.StatusCodeOK,
-			Event:      protocol.EventCheckConnection,
-		}
-		n, err := c.Send(resp)
-		if err != nil {
-			c.Println(err)
-			return false
-		}
-
-		if c.LogLevel == LogLevelHigh {
-			c.Printf("CheckConnection: %s(%d)\n", resp.String(), n)
-		}
+		c.SendEvent(protocol.EventCheckConnection)
 		return false
 	})
 	c.ccTimer.Start()
@@ -94,9 +90,9 @@ func (c *Connection) Equals(header protocol.Header) bool {
 func (c *Connection) disconnect() {
 	c.dTimer.Stop()
 	c.ccTimer.Stop()
+	c.SendEvent(protocol.EventDisconnect)
 	t := time.Now()
 	c.DisconnectTime = &t
-	//c.UDPConn.Close()
 	//Удаляем подключение из списка
 	c.deleteConnection(c.Hostname)
 	//событие при отключении
@@ -106,10 +102,22 @@ func (c *Connection) disconnect() {
 }
 
 func (c *Connection) Send(resp protocol.IResponse) (int, error) {
-	if !c.Started {
-		return 0, nil
-	}
 	return c.listener.WriteToUDP(resp.Marshal(), c.IpAddress)
+}
+
+func (c *Connection) SendEvent(event protocol.Events) {
+	resp := &protocol.Response{
+		StatusCode: protocol.StatusCodeOK,
+		Event:      event,
+	}
+	n, err := c.Send(resp)
+	if err != nil {
+		c.Println(err)
+		return
+	}
+	if c.LogLevel == LogLevelHigh {
+		c.Printf("CheckConnection: %s(%d)\n", resp.String(), n)
+	}
 }
 
 func (c *Connection) String() string {
@@ -117,7 +125,7 @@ func (c *Connection) String() string {
 	if c.DisconnectTime != nil {
 		disconnect_time = c.DisconnectTime.Format("2006-01-02 15:04:05")
 	}
-	return fmt.Sprintf("hostname: %s, ip: %s, domain: %s, login: %s, version: %s, is_connected: %t, connect_time: %s, disconnect_time: %s",
-		c.Hostname, c.IpAddress.String(), c.Domain, c.Login, c.Version, c.Connected,
+	return fmt.Sprintf("hostname: %s, ip: %s, domain: %s, login: %s, version: %s, connected: %t, connect_time: %s, disconnect_time: %s",
+		c.Hostname, c.IpAddress.String(), c.Domain, c.Login, c.Version, c.Connected.value,
 		c.ConnectTime.Format("2006-01-02 15:04:05"), disconnect_time)
 }
