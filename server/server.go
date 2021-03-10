@@ -98,48 +98,38 @@ func (s *Server) Start() (err error) {
 		return err
 	}
 
-	go func() {
-
-		for {
-
-			if !s.Started.Get() {
-				break
-			}
-
-			buffer := make([]byte, s.BufferSize)
-
-			n, addr, err := s.listener.ReadFromUDP(buffer)
-			if err != nil {
-				s.Println(err)
-				continue
-			}
-			/*bytes := 0
-			var addr *net.UDPAddr
-			var data []byte
-			for bytes > 0 {
-				var n int
-				n, addr, err = s.listener.ReadFromUDP(buffer)
-				if err != nil {
-					s.Println(err)
-					break
-				}
-				data = append(data, buffer[:n]...)
-			}*/
-
-			if s.LogLevel == LogLevelHigh {
-				s.Println("%s(%d)", string(buffer[:n]), n)
-			}
-
-			//Передаем данные и разбираем их
-			go s.handleBufferParse(addr, buffer[:n])
-		}
-	}()
+	go s.receive()
 
 	s.Started.Set(true)
 
 	OnStart(s.Handler, s)
 
 	return
+}
+
+func (s *Server) receive() {
+
+	for {
+
+		buffer := make([]byte, s.BufferSize)
+
+		n, addr, err := s.listener.ReadFromUDP(buffer)
+		if err != nil && err != net.ErrClosed {
+			s.Printf("receive: %v\n", err)
+			break
+		}
+
+		if !s.Started.Get() {
+			break
+		}
+
+		if s.LogLevel == LogLevelHigh {
+			s.Println("receive: %s(%d)", string(buffer[:n]), n)
+		}
+
+		//Передаем данные и разбираем их
+		go s.parse(addr, buffer[:n])
+	}
 }
 
 func (s *Server) newConnection(addr *net.UDPAddr, header protocol.Header) *Connection {
@@ -170,7 +160,7 @@ func (s *Server) deleteConnection(hostname string) {
 	s.Connections.Delete(hostname)
 }
 
-func (s *Server) handleBufferParse(addr *net.UDPAddr, buffer []byte) {
+func (s *Server) parse(addr *net.UDPAddr, buffer []byte) {
 
 	packet := new(protocol.Packet)
 	err := packet.Unmarshal(buffer)
@@ -185,11 +175,11 @@ func (s *Server) handleBufferParse(addr *net.UDPAddr, buffer []byte) {
 		packet.Header.Hostname = strings.ToUpper(packet.Header.Hostname)
 
 		//Подключаемся
-		go s.receive(addr, packet)
+		go s.do(addr, packet)
 	}
 }
 
-func (s *Server) receive(addr *net.UDPAddr, packet *protocol.Packet) {
+func (s *Server) do(addr *net.UDPAddr, packet *protocol.Packet) {
 
 	//Инициализируем ответ
 	resp := protocol.NewResponse(packet.Request, packet.Header.Event)
@@ -314,6 +304,7 @@ func (s *Server) OnDisconnected(handler HandleConnection) {
 }
 
 func (s *Server) Stop() error {
+	//defer s.listener.Close()
 	OnStop(s.Handler, s)
 	s.Started.Set(false)
 	for _, conn := range s.GetConnections() {

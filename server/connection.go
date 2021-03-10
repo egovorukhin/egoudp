@@ -106,11 +106,11 @@ func (c *Connection) Send(resp protocol.IResponse) (int, error) {
 func (c *Connection) Send1(resp *protocol.Response) {
 	n, err := c.Send(resp)
 	if err != nil {
-		c.Println(err)
+		c.Printf("Send1: %v\n", err)
 		return
 	}
 	if c.LogLevel == LogLevelHigh {
-		c.Printf("CheckConnection: %s(%d)\n", resp.String(), n)
+		c.Printf("Send1: %s(%d)\n", resp.String(), n)
 	}
 }
 
