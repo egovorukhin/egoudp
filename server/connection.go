@@ -56,7 +56,7 @@ func (c *Connection) startDTimer(timeout int) {
 //Стартуем check connection timer
 func (c *Connection) startCCTimer(timeout int) {
 	c.ccTimer = egotimer.New(time.Duration(timeout)*time.Second, func(t time.Time) bool {
-		c.SendEvent(protocol.EventCheckConnection)
+		c.Send4(protocol.EventCheckConnection)
 		return false
 	})
 	go c.ccTimer.Start()
@@ -90,7 +90,7 @@ func (c *Connection) Equals(header protocol.Header) bool {
 func (c *Connection) disconnect() {
 	c.dTimer.Stop()
 	c.ccTimer.Stop()
-	c.SendEvent(protocol.EventDisconnect)
+	c.Send4(protocol.EventDisconnect)
 	t := time.Now()
 	c.DisconnectTime = &t
 	//Удаляем подключение из списка
@@ -103,11 +103,7 @@ func (c *Connection) Send(resp protocol.IResponse) (int, error) {
 	return c.listener.WriteToUDP(resp.Marshal(), c.IpAddress)
 }
 
-func (c *Connection) SendEvent(event protocol.Events) {
-	resp := &protocol.Response{
-		StatusCode: protocol.StatusCodeOK,
-		Event:      event,
-	}
+func (c *Connection) Send1(resp *protocol.Response) {
 	n, err := c.Send(resp)
 	if err != nil {
 		c.Println(err)
@@ -116,6 +112,24 @@ func (c *Connection) SendEvent(event protocol.Events) {
 	if c.LogLevel == LogLevelHigh {
 		c.Printf("CheckConnection: %s(%d)\n", resp.String(), n)
 	}
+}
+
+func (c *Connection) Send2(code protocol.StatusCode, event protocol.Events, contentType string, data []byte) {
+	resp := &protocol.Response{
+		StatusCode:  code,
+		Event:       event,
+		ContentType: contentType,
+		Data:        data,
+	}
+	c.Send1(resp)
+}
+
+func (c *Connection) Send3(event protocol.Events, contentType string, data []byte) {
+	c.Send2(protocol.StatusCodeOK, event, contentType, data)
+}
+
+func (c *Connection) Send4(event protocol.Events) {
+	c.Send3(event, "", nil)
 }
 
 func (c *Connection) String() string {

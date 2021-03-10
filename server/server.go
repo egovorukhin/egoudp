@@ -201,26 +201,18 @@ func (s *Server) receive(addr *net.UDPAddr, packet *protocol.Packet) {
 	//Отправляем команду о подключении клиенту
 	case protocol.EventConnected:
 
-		if !conn.Connected.Get() {
-			return
-		}
-
 		//событие подключения клиента
 		OnConnected(s.Handler, conn)
 		//отправляем клиенту ответ,
 		//передаем время для таймера проверки активности сервера
 		//прибавляем 5 сек, чтобы клиент ждал проверку дольше
-		go func() {
-			_, err := conn.Send(resp.OK([]byte(strconv.Itoa(s.CheckConnectionTimeout + 5))))
-			if err != nil {
-				s.Println(err)
-			}
-		}()
+		go conn.Send3(protocol.EventConnected, "", []byte(strconv.Itoa(s.CheckConnectionTimeout+5)))
 		return
 	//Команда на отключение клиента
 	case protocol.EventDisconnect:
 		//удаляем подключения из списка
 		conn.Connected.Set(false)
+		conn.disconnect()
 		return
 	}
 

@@ -340,7 +340,7 @@ func (c *Client) OnStop(handler HandleClient) {
 
 func (c *Client) Stop() {
 	OnStop(c.Handler, c)
-	c.timer.Stop()
+	c.stopTimer()
 	c.Started.Set(false)
 	c.Connected.Set(false)
 	c.packet.SetEvent(protocol.EventDisconnect)

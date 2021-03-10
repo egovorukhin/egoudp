@@ -39,7 +39,10 @@ func main() {
 			fmt.Println("Сервер запущен")
 			break
 		case "stop":
-			srv.Stop()
+			err = srv.Stop()
+			if err != nil {
+				fmt.Println(err)
+			}
 			fmt.Println("Сервер остановлен")
 			break
 		case "get_connections":
