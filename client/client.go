@@ -195,7 +195,7 @@ func (c *Client) receive() {
 
 		//Передаем данные и разбираем их
 		go func() {
-			err = c.handleBufferParse(buffer[:n])
+			err = c.parse(buffer[:n])
 			if err != nil {
 				c.Println(err)
 			}
@@ -204,7 +204,7 @@ func (c *Client) receive() {
 }
 
 //Функция парсинга входных данных.
-func (c *Client) handleBufferParse(buffer []byte) error {
+func (c *Client) parse(buffer []byte) error {
 
 	resp := new(protocol.Response)
 	err := resp.Unmarshal(buffer)

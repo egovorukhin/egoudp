@@ -80,7 +80,7 @@ func Hi(c *server.Connection, resp protocol.IResponse, req protocol.Request) {
 func Winter(c *server.Connection, resp protocol.IResponse, req protocol.Request) {
 	//JSON
 	data := `["Декабрь", "Январь", "Февраль"]`
-	resp = resp.SetData(protocol.StatusCodeOK, []byte(data)).SetContentType("json")
+	resp = resp.SetData(protocol.StatusCodeOK, []rune(data)).SetContentType("json")
 	_, err := c.Send(resp)
 	if err != nil {
 		fmt.Println(err)

@@ -9,11 +9,11 @@ type Request struct {
 	Method      Methods
 	Id          string
 	ContentType string
-	Data        []byte
+	Data        Runes
 }
 
 type IRequest interface {
-	SetData(contentType string, data []byte) *Request
+	SetData(contentType string, data Runes) *Request
 }
 
 func NewRequest(path string, method Methods) *Request {
@@ -23,7 +23,7 @@ func NewRequest(path string, method Methods) *Request {
 	}
 }
 
-func (r *Request) SetData(contentType string, data []byte) *Request {
+func (r *Request) SetData(contentType string, data Runes) *Request {
 	r.ContentType = contentType
 	r.Data = data
 	return r
@@ -32,7 +32,7 @@ func (r *Request) SetData(contentType string, data []byte) *Request {
 func (r *Request) String() string {
 	data := "null"
 	if r.Data != nil {
-		data = fmt.Sprintf("%v", r.Data)
+		data = fmt.Sprintf("%s", r.Data)
 	}
 	return fmt.Sprintf("Id: %s, path: %s, method: %s, type: %s, data: %s", r.Id, r.Path, r.Method.String(), r.ContentType, data)
 }

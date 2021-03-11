@@ -100,9 +100,9 @@ func OnCheckConnection(c *client.Client) {
 	fmt.Printf("CheckConnection: %s\n", time.Now().Format("15:04:05"))
 }
 
-func Hi(c client.IClient) ([]byte, error) {
+func Hi(c client.IClient) ([]rune, error) {
 	req := protocol.NewRequest("hi", protocol.MethodNone).
-		SetData("json", []byte(`{"message": "Hello, World!"}`))
+		SetData("json", []rune(`{"message": "Hello, World!"}`))
 	resp, err := c.Send(req)
 	if err != nil {
 		return nil, err
@@ -118,13 +118,13 @@ func Winter(c client.IClient, v interface{}) error {
 	}
 	switch resp.ContentType {
 	case "json":
-		err = json.Unmarshal(resp.Data, v)
+		err = json.Unmarshal(resp.Data.ToByte(), v)
 		if err != nil {
 			return err
 		}
 		break
 	case "xml":
-		err = xml.Unmarshal(resp.Data, v)
+		err = xml.Unmarshal(resp.Data.ToByte(), v)
 		if err != nil {
 			return err
 		}

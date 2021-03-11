@@ -196,7 +196,7 @@ func (s *Server) do(addr *net.UDPAddr, packet *protocol.Packet) {
 		//отправляем клиенту ответ,
 		//передаем время для таймера проверки активности сервера
 		//прибавляем 5 сек, чтобы клиент ждал проверку дольше
-		go conn.Send3(protocol.EventConnected, "", []byte(strconv.Itoa(s.CheckConnectionTimeout+5)))
+		go conn.Send3(protocol.EventConnected, "", []rune(strconv.Itoa(s.CheckConnectionTimeout+5)))
 		return
 	//Команда на отключение клиента
 	case protocol.EventDisconnect:
@@ -249,7 +249,7 @@ func (s *Server) handleFuncRoute(c *Connection, resp protocol.IResponse, req pro
 	if ok {
 		route := v.(*Route)
 		if route.Method != req.Method {
-			resp.Error([]byte(fmt.Sprintf("Метод запроса не соответствует маршруту [%s]", route.Path)))
+			resp.SetData(protocol.StatusCodeError, []rune(fmt.Sprintf("Метод запроса не соответствует маршруту [%s]", route.Path)))
 			return
 		}
 		go route.Handler(c, resp, req)

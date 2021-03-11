@@ -11,14 +11,22 @@ type Response struct {
 	StatusCode  StatusCode
 	Event       Events
 	ContentType string
-	Data        []byte
+	Data        Runes
+}
+
+type Runes []rune
+
+func (r Runes) ToByte() []byte {
+	return []byte(r.String())
+}
+
+func (r Runes) String() string {
+	return string(r)
 }
 
 type IResponse interface {
 	GetID() string
-	OK(data []byte) *Response
-	Error(data []byte) *Response
-	SetData(code StatusCode, data []byte) *Response
+	SetData(code StatusCode, data []rune) *Response
 	SetContentType(s string) *Response
 	Marshal() []byte
 	Unmarshal(b []byte) error
@@ -39,22 +47,12 @@ func (r *Response) GetID() string {
 	return r.Id
 }
 
-func (r *Response) OK(data []byte) *Response {
-	r.SetData(StatusCodeOK, data)
-	return r
-}
-
-func (r *Response) Error(data []byte) *Response {
-	r.SetData(StatusCodeError, data)
-	return r
-}
-
 func (r *Response) SetContentType(s string) *Response {
 	r.ContentType = s
 	return r
 }
 
-func (r *Response) SetData(code StatusCode, data []byte) *Response {
+func (r *Response) SetData(code StatusCode, data []rune) *Response {
 	r.StatusCode = code
 	r.Data = data
 	return r
@@ -109,7 +107,7 @@ func (r *Response) Unmarshal(b []byte) (err error) {
 	if err != nil {
 		return
 	}
-	r.Data = []byte(data)
+	r.Data = []rune(data)
 
 	return
 }

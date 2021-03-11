@@ -153,7 +153,7 @@ func (p *Packet) Unmarshal(b []byte) error {
 		if err != nil {
 			return err
 		}
-		req.Data = []byte(data)
+		req.Data = []rune(data)
 
 		p.Request = req
 	}

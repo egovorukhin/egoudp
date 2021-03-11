@@ -114,7 +114,7 @@ func (c *Connection) Send1(resp *protocol.Response) {
 	}
 }
 
-func (c *Connection) Send2(code protocol.StatusCode, event protocol.Events, contentType string, data []byte) {
+func (c *Connection) Send2(code protocol.StatusCode, event protocol.Events, contentType string, data []rune) {
 	resp := &protocol.Response{
 		StatusCode:  code,
 		Event:       event,
@@ -124,7 +124,7 @@ func (c *Connection) Send2(code protocol.StatusCode, event protocol.Events, cont
 	c.Send1(resp)
 }
 
-func (c *Connection) Send3(event protocol.Events, contentType string, data []byte) {
+func (c *Connection) Send3(event protocol.Events, contentType string, data []rune) {
 	c.Send2(protocol.StatusCodeOK, event, contentType, data)
 }
 

@@ -5,7 +5,7 @@ import (
 	"github.com/egovorukhin/egoudp/protocol"
 )
 
-//Функция которая вызывается при событии получения определённого маршоута
+//Функция которая вызывается при событии получения определённого маршрута
 type FuncHandler func(c *Connection, resp protocol.IResponse, req protocol.Request)
 
 type Route struct {
