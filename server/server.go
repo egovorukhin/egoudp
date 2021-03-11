@@ -114,9 +114,9 @@ func (s *Server) receive() {
 		buffer := make([]byte, s.BufferSize)
 
 		n, addr, err := s.listener.ReadFromUDP(buffer)
-		if err != nil && err != net.ErrClosed {
+		if err != nil && !errors.Is(err, net.ErrClosed) {
 			s.Printf("receive: %v\n", err)
-			break
+			continue
 		}
 
 		if !s.Started.Get() {
