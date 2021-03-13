@@ -43,18 +43,18 @@ func New(hostname, login, domain, version string) *Packet {
 			Login:    login,
 			Domain:   domain,
 			Version:  version,
-			Event:    EventNone,
+			Event:    int(EventNone),
 		},
 	}
 }
 
-func (p *Packet) SetEvent(event Events) {
+func (p *Packet) SetEvent(event int) {
 	p.Lock()
 	p.Event = event
 	p.Unlock()
 }
 
-func (p *Packet) GetEvent() Events {
+func (p *Packet) GetEvent() int {
 	p.Lock()
 	defer p.Unlock()
 	return p.Event
@@ -120,7 +120,7 @@ func (p *Packet) Unmarshal(b []byte) error {
 	if err != nil {
 		return err
 	}
-	p.Header.Event = ToEvent(event)
+	p.Header.Event, _ = strconv.Atoi(event)
 
 	//body
 	if b[0] == bodyChar {

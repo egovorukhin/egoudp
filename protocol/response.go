@@ -4,17 +4,22 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"strconv"
 )
 
 type Response struct {
 	Id          string
 	StatusCode  StatusCode
-	Event       Events
+	Event       int
 	ContentType string
 	Data        Runes
 }
 
 type Runes []rune
+
+func ToRunes(s string) Runes {
+	return []rune(s)
+}
 
 func (r Runes) ToByte() []byte {
 	return []byte(r.String())
@@ -26,13 +31,13 @@ func (r Runes) String() string {
 
 type IResponse interface {
 	GetID() string
-	SetData(code StatusCode, data []rune) *Response
+	SetData(code StatusCode, data Runes) *Response
 	SetContentType(s string) *Response
 	Marshal() []byte
 	Unmarshal(b []byte) error
 }
 
-func NewResponse(req *Request, event Events) IResponse {
+func NewResponse(req *Request, event int) IResponse {
 	resp := &Response{
 		Event: event,
 	}
@@ -52,7 +57,7 @@ func (r *Response) SetContentType(s string) *Response {
 	return r
 }
 
-func (r *Response) SetData(code StatusCode, data []rune) *Response {
+func (r *Response) SetData(code StatusCode, data Runes) *Response {
 	r.StatusCode = code
 	r.Data = data
 	return r
@@ -96,7 +101,7 @@ func (r *Response) Unmarshal(b []byte) (err error) {
 	if err != nil {
 		return
 	}
-	r.Event = ToEvent(event)
+	r.Event, _ = strconv.Atoi(event)
 	//4. content-type
 	r.ContentType, b, err = findField(b)
 	if err != nil {
@@ -118,5 +123,5 @@ func (r *Response) String() string {
 		data = fmt.Sprintf("%v", r.Data)
 	}
 	return fmt.Sprintf("id: %s, status_code: %s(%d), event: %s(%d), content_type: %s, data: %s",
-		r.Id, r.StatusCode.String(), r.StatusCode, r.Event.String(), r.Event, r.ContentType, data)
+		r.Id, r.StatusCode.String(), r.StatusCode, EventToString(Events(r.Event)), r.Event, r.ContentType, data)
 }

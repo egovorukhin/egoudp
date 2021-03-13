@@ -19,9 +19,9 @@ type Connection struct {
 	ConnectTime    time.Time
 	DisconnectTime *time.Time
 	Version        string
-	dTimer         *egotimer.Timer
-	ccTimer        *egotimer.Timer
-	Connected      Connected
+	timer          *egotimer.Timer
+	//ccTimer        *egotimer.Timer
+	Connected Connected
 }
 
 type Connected struct {
@@ -42,7 +42,7 @@ func (c *Connected) Get() bool {
 }
 
 func (c *Connection) startDTimer(timeout int) {
-	c.dTimer = egotimer.New(time.Duration(timeout)*time.Second, func(t time.Time) bool {
+	c.timer = egotimer.New(time.Duration(timeout)*time.Second, func(t time.Time) bool {
 		if !c.Connected.Get() {
 			c.disconnect()
 			return true
@@ -50,21 +50,21 @@ func (c *Connection) startDTimer(timeout int) {
 		c.Connected.Set(false)
 		return false
 	})
-	go c.dTimer.Start()
+	go c.timer.Start()
 }
 
 //Стартуем check connection timer
-func (c *Connection) startCCTimer(timeout int) {
+/*func (c *Connection) startCCTimer(timeout int) {
 	c.ccTimer = egotimer.New(time.Duration(timeout)*time.Second, func(t time.Time) bool {
 		c.Send4(protocol.EventCheckConnection)
 		return false
 	})
 	go c.ccTimer.Start()
-}
+}*/
 
 func (c *Connection) updated(addr *net.UDPAddr, header protocol.Header) bool {
 
-	if !c.Equals(header) || !strings.EqualFold(c.IpAddress.String(), addr.String()) /*!c.IpAddress.IP.Equal(addr.IP)*/ {
+	if !c.equals(header) || !strings.EqualFold(c.IpAddress.String(), addr.String()) /*!c.IpAddress.IP.Equal(addr.IP)*/ {
 		c.Hostname = header.Hostname
 		c.IpAddress = addr
 		c.Domain = header.Domain
@@ -77,7 +77,7 @@ func (c *Connection) updated(addr *net.UDPAddr, header protocol.Header) bool {
 	return false
 }
 
-func (c *Connection) Equals(header protocol.Header) bool {
+func (c *Connection) equals(header protocol.Header) bool {
 	if c.Hostname != header.Hostname ||
 		c.Login != header.Login ||
 		c.Domain != header.Domain ||
@@ -88,9 +88,9 @@ func (c *Connection) Equals(header protocol.Header) bool {
 }
 
 func (c *Connection) disconnect() {
-	c.dTimer.Stop()
-	c.ccTimer.Stop()
-	c.Send4(protocol.EventDisconnect)
+	c.timer.Stop()
+	//c.ccTimer.Stop()
+	c.Send4(int(protocol.EventDisconnect))
 	t := time.Now()
 	c.DisconnectTime = &t
 	//Удаляем подключение из списка
@@ -114,7 +114,7 @@ func (c *Connection) Send1(resp *protocol.Response) {
 	}
 }
 
-func (c *Connection) Send2(code protocol.StatusCode, event protocol.Events, contentType string, data []rune) {
+func (c *Connection) Send2(code protocol.StatusCode, event int, contentType string, data []rune) {
 	resp := &protocol.Response{
 		StatusCode:  code,
 		Event:       event,
@@ -124,11 +124,11 @@ func (c *Connection) Send2(code protocol.StatusCode, event protocol.Events, cont
 	c.Send1(resp)
 }
 
-func (c *Connection) Send3(event protocol.Events, contentType string, data []rune) {
+func (c *Connection) Send3(event int, contentType string, data []rune) {
 	c.Send2(protocol.StatusCodeOK, event, contentType, data)
 }
 
-func (c *Connection) Send4(event protocol.Events) {
+func (c *Connection) Send4(event int) {
 	c.Send3(event, "", nil)
 }
 

@@ -29,6 +29,10 @@ func ToEvent(s string) Events {
 	return event
 }
 
+func EventToString(event Events) string {
+	return event.String()
+}
+
 func (e Events) String() string {
 	s := "EventNone"
 	switch e {

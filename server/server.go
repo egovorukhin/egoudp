@@ -64,7 +64,7 @@ type IServer interface {
 	SetLogger(out io.Writer, prefix string, flag int)
 	Start() error
 	Stop() error
-	Send(route string, resp *protocol.Response) (int, error)
+	Send(hostname string, resp *protocol.Response) (int, error)
 	SetRoute(path string, method protocol.Methods, handler FuncHandler)
 	OnStart(handler HandleServer)
 	OnStop(handler HandleServer)
@@ -151,7 +151,7 @@ func (s *Server) newConnection(addr *net.UDPAddr, header protocol.Header) *Conne
 	//при отсутствии прилетающих пакетов
 	conn.startDTimer(s.DisconnectTimeout)
 	//Таймер отправки активности сервера
-	conn.startCCTimer(s.CheckConnectionTimeout)
+	//conn.startCCTimer(s.CheckConnectionTimeout)
 
 	return conn
 }
@@ -189,17 +189,17 @@ func (s *Server) do(addr *net.UDPAddr, packet *protocol.Packet) {
 	//Проверяем события
 	switch packet.Header.Event {
 	//Отправляем команду о подключении клиенту
-	case protocol.EventConnected:
+	case int(protocol.EventConnected):
 
 		//событие подключения клиента
 		OnConnected(s.Handler, conn)
 		//отправляем клиенту ответ,
 		//передаем время для таймера проверки активности сервера
 		//прибавляем 5 сек, чтобы клиент ждал проверку дольше
-		go conn.Send3(protocol.EventConnected, "", []rune(strconv.Itoa(s.CheckConnectionTimeout+5)))
+		go conn.Send4(int(protocol.EventConnected))
 		return
 	//Команда на отключение клиента
-	case protocol.EventDisconnect:
+	case int(protocol.EventDisconnect):
 		//удаляем подключения из списка
 		conn.Connected.Set(false)
 		conn.disconnect()
@@ -219,7 +219,7 @@ func (s *Server) setConnection(addr *net.UDPAddr, packet *protocol.Packet) (conn
 		//Создаем и добавляем подключение
 		conn = s.newConnection(addr, packet.Header)
 		s.Connections.Store(packet.Header.Hostname, conn)
-		packet.Header.Event = protocol.EventConnected
+		packet.Header.Event = int(protocol.EventConnected)
 		return conn
 	}
 	//Приводим значение из списка к Connection
@@ -228,7 +228,7 @@ func (s *Server) setConnection(addr *net.UDPAddr, packet *protocol.Packet) (conn
 	//Если пришли немного отличающиеся данные,
 	//то обновляем данные по подключению
 	if conn.updated(addr, packet.Header) {
-		packet.Header.Event = protocol.EventConnected
+		packet.Header.Event = int(protocol.EventConnected)
 	}
 
 	conn.Connected.Set(true)
@@ -259,7 +259,7 @@ func (s *Server) handleFuncRoute(c *Connection, resp protocol.IResponse, req pro
 func (s *Server) Send(hostname string, response *protocol.Response) (n int, err error) {
 
 	//Проверяем на существование подключение
-	v, ok := s.Connections.Load(hostname)
+	v, ok := s.Connections.Load(strings.ToUpper(hostname))
 	if !ok {
 		return 0, errors.New(fmt.Sprintf("host: %s - подключение отсутствует!", hostname))
 	}

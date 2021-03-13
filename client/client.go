@@ -123,7 +123,7 @@ func (c *Client) Start(hostname, login, domain, version string) error {
 	}
 
 	c.packet = protocol.New(hostname, login, domain, version)
-	c.packet.Event = protocol.EventConnected
+	c.packet.Event = int(protocol.EventConnected)
 
 	c.Started.value = true
 
@@ -169,7 +169,7 @@ func (c *Client) send() {
 		//Очищаем Request
 		c.packet.Request = nil
 
-		if c.packet.GetEvent() == protocol.EventDisconnect {
+		if c.packet.GetEvent() == int(protocol.EventDisconnect) {
 			break
 		}
 
@@ -215,7 +215,7 @@ func (c *Client) parse(buffer []byte) error {
 	//Проверяем события
 	switch resp.Event {
 	//Отправляем команду о подключении клиенту
-	case protocol.EventConnected:
+	case int(protocol.EventConnected):
 		//событие подключения клиента
 		c.Connected.Set(true)
 		OnConnected(c.Handler, c)
@@ -228,22 +228,22 @@ func (c *Client) parse(buffer []byte) error {
 		}
 		break
 	//Команда на отключение клиента
-	case protocol.EventDisconnect:
+	case int(protocol.EventDisconnect):
 		//событие отключения клиента
 		c.Connected.Set(false)
 		c.stopTimer()
 		OnDisconnected(c.Handler, c)
 		return nil
-	case protocol.EventCheckConnection:
+		/*case int(protocol.EventCheckConnection):
 		//событие проверки активности сервера
 		c.Connected.Set(true)
 		c.restartTimer()
 		OnCheckConnection(c.Handler, c)
-		break
+		break*/
 	}
 
-	if c.packet.GetEvent() != protocol.EventNone {
-		c.packet.SetEvent(protocol.EventNone)
+	if c.packet.GetEvent() != int(protocol.EventNone) {
+		c.packet.SetEvent(int(protocol.EventNone))
 	}
 
 	go func() {
@@ -343,5 +343,5 @@ func (c *Client) Stop() {
 	c.stopTimer()
 	c.Started.Set(false)
 	c.Connected.Set(false)
-	c.packet.SetEvent(protocol.EventDisconnect)
+	c.packet.SetEvent(int(protocol.EventDisconnect))
 }

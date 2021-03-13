@@ -7,7 +7,7 @@ type Header struct {
 	Login    string
 	Domain   string
 	Version  string
-	Event    Events
+	Event    int
 }
 
 func (h Header) IsNil() bool {
@@ -21,6 +21,6 @@ func (h Header) IsNil() bool {
 }
 
 func (h *Header) String() string {
-	return fmt.Sprintf("hostname: %s, login: %s, domain: %s, version: %s, event: %s",
-		h.Hostname, h.Login, h.Domain, h.Version, h.Event.String())
+	return fmt.Sprintf("hostname: %s, login: %s, domain: %s, version: %s, event: %s(%d)",
+		h.Hostname, h.Login, h.Domain, h.Version, EventToString(Events(h.Event)), h.Event)
 }

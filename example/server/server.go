@@ -9,6 +9,12 @@ import (
 	"time"
 )
 
+type Events int
+
+const (
+	EventNotify Events = 3
+)
+
 func main() {
 	config := server.Config{
 		Port:                   5655,
@@ -50,6 +56,15 @@ func main() {
 			break
 		case "get_routes":
 			fmt.Println(srv.GetRoutes())
+			break
+		case "nf":
+			resp := &protocol.Response{
+				StatusCode:  protocol.StatusCodeOK,
+				Event:       int(EventNotify),
+				ContentType: "",
+				Data:        protocol.ToRunes("Как жизнь?"),
+			}
+			srv.Send("gb1-dit-1-16146", resp)
 			break
 		case "exit":
 			os.Exit(0)
