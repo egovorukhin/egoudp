@@ -65,6 +65,7 @@ type IServer interface {
 	Start() error
 	Stop() error
 	Send(hostname string, resp *protocol.Response) (int, error)
+	SendByLogin(login string, response *protocol.Response) int
 	SetRoute(path string, method protocol.Methods, handler FuncHandler)
 	OnStart(handler HandleServer)
 	OnStop(handler HandleServer)
