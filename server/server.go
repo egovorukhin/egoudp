@@ -269,6 +269,19 @@ func (s *Server) Send(hostname string, response *protocol.Response) (n int, err 
 	return connection.Send(response)
 }
 
+func (s *Server) SendByLogin(login string, response *protocol.Response) (n int) {
+	//Ищем по логину тачки
+	s.Connections.Range(func(key, value interface{}) bool {
+		connection := value.(*Connection)
+		if connection.Login == strings.ToLower(login) {
+			_, _ = connection.Send(response)
+		}
+		n++
+		return true
+	})
+	return
+}
+
 func (s *Server) GetConnections() (connections map[string]*Connection) {
 	connections = map[string]*Connection{}
 	s.Connections.Range(func(key, value interface{}) bool {
