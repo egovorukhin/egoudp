@@ -238,7 +238,7 @@ func (s *Server) setConnection(addr *net.UDPAddr, packet *protocol.Packet) (conn
 }
 
 func (s *Server) SetRoute(path string, method protocol.Methods, handler FuncHandler) {
-	s.Router.Store(path, &Route{
+	s.Router.Store(fmt.Sprintf("%s:%d", path, method), &Route{
 		Path:    path,
 		Method:  method,
 		Handler: handler,
@@ -246,7 +246,7 @@ func (s *Server) SetRoute(path string, method protocol.Methods, handler FuncHand
 }
 
 func (s *Server) handleFuncRoute(c *Connection, resp protocol.IResponse, req protocol.Request) {
-	v, ok := s.Router.Load(req.Path)
+	v, ok := s.Router.Load(fmt.Sprintf("%s:%d", req.Path, req.Method))
 	if ok {
 		route := v.(*Route)
 		if route.Method != req.Method {
