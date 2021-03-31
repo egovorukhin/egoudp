@@ -1,18 +1,13 @@
 package client
 
-import (
-	"github.com/egovorukhin/egotimer"
-	"github.com/egovorukhin/egoudp/protocol"
-	"time"
-)
-
+/*
 func (c *Client) startTimer(timeout int) {
 	c.timer = egotimer.New(time.Duration(timeout)*time.Second, func(t time.Time) bool {
 		if !c.Started.Get() {
 			return true
 		}
 		if !c.Connected.Get() {
-			c.packet.SetEvent(protocol.EventConnected)
+			c.packet.SetEvent(int(protocol.EventConnected))
 			OnDisconnected(c.Handler, c)
 			return true
 		}
@@ -32,4 +27,4 @@ func (c *Client) restartTimer() {
 	if c.timer != nil {
 		go c.timer.Restart()
 	}
-}
+}*/

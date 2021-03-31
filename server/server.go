@@ -191,12 +191,7 @@ func (s *Server) do(addr *net.UDPAddr, packet *protocol.Packet) {
 	switch packet.Header.Event {
 	//Отправляем команду о подключении клиенту
 	case int(protocol.EventConnected):
-
-		//событие подключения клиента
-		OnConnected(s.Handler, conn)
-		//отправляем клиенту ответ,
-		//передаем время для таймера проверки активности сервера
-		//прибавляем 5 сек, чтобы клиент ждал проверку дольше
+		//отправляем клиенту ответ
 		go conn.Send4(int(protocol.EventConnected))
 		return
 	//Команда на отключение клиента
@@ -220,6 +215,8 @@ func (s *Server) setConnection(addr *net.UDPAddr, packet *protocol.Packet) (conn
 		//Создаем и добавляем подключение
 		conn = s.newConnection(addr, packet.Header)
 		s.Connections.Store(packet.Header.Hostname, conn)
+		//событие подключения клиента
+		OnConnected(s.Handler, conn)
 		packet.Header.Event = int(protocol.EventConnected)
 		return conn
 	}
@@ -229,6 +226,8 @@ func (s *Server) setConnection(addr *net.UDPAddr, packet *protocol.Packet) (conn
 	//Если пришли немного отличающиеся данные,
 	//то обновляем данные по подключению
 	if conn.updated(addr, packet.Header) {
+		//событие переподключения клиента
+		OnReconnected(s.Handler, conn)
 		packet.Header.Event = int(protocol.EventConnected)
 	}
 

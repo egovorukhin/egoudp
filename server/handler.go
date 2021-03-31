@@ -10,6 +10,7 @@ type Handler struct {
 	OnStart        HandleServer
 	OnStop         HandleServer
 	OnConnected    HandleConnection
+	OnReconnected  HandleConnection
 	OnDisconnected HandleConnection
 }
 
@@ -31,6 +32,12 @@ func (h *Handler) HandleConnected(c *Connection) {
 	}
 }
 
+func (h *Handler) HandleReconnected(c *Connection) {
+	if h.OnReconnected != nil {
+		go h.OnReconnected(c)
+	}
+}
+
 func (h *Handler) HandleDisconnected(c *Connection) {
 	if h.OnDisconnected != nil {
 		go h.OnDisconnected(c)
@@ -41,6 +48,7 @@ type IHandler interface {
 	HandleStart(s *Server)
 	HandleStop(s *Server)
 	HandleConnected(c *Connection)
+	HandleReconnected(c *Connection)
 	HandleDisconnected(c *Connection)
 }
 
@@ -54,6 +62,10 @@ func OnStop(handler IHandler, s *Server) {
 
 func OnConnected(handler IHandler, c *Connection) {
 	handler.HandleConnected(c)
+}
+
+func OnReconnected(handler IHandler, c *Connection) {
+	handler.HandleReconnected(c)
 }
 
 func OnDisconnected(handler IHandler, c *Connection) {

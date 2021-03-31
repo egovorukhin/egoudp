@@ -168,7 +168,8 @@ func findField(b []byte) (string, []byte, error) {
 			if err != nil {
 				return "", b, err
 			}
-			return string(b[i+1 : n+i+1]), b[n+i+1:], nil
+			r := ToRunes(string(b))
+			return r[i+1 : n+i+1].String(), r[n+i+1:].ToByte(), nil
 		}
 	}
 	return "", b, errors.New("Не удалось определить поле. Формат должен быть вида - n:word")

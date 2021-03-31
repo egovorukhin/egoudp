@@ -10,7 +10,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -219,19 +218,19 @@ func (c *Client) parse(buffer []byte) error {
 		//событие подключения клиента
 		c.Connected.Set(true)
 		OnConnected(c.Handler, c)
-		if resp.Data != nil {
+		/*if resp.Data != nil {
 			timeout, err := strconv.Atoi(string(resp.Data))
 			if err != nil {
 				return err
 			}
 			c.startTimer(timeout)
-		}
+		}*/
 		break
 	//Команда на отключение клиента
 	case int(protocol.EventDisconnect):
 		//событие отключения клиента
 		c.Connected.Set(false)
-		c.stopTimer()
+		//c.stopTimer()
 		OnDisconnected(c.Handler, c)
 		return nil
 		/*case int(protocol.EventCheckConnection):
@@ -340,7 +339,7 @@ func (c *Client) OnStop(handler HandleClient) {
 
 func (c *Client) Stop() {
 	OnStop(c.Handler, c)
-	c.stopTimer()
+	//c.stopTimer()
 	c.Started.Set(false)
 	c.Connected.Set(false)
 	c.packet.SetEvent(int(protocol.EventDisconnect))
