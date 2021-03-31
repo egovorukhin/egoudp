@@ -275,8 +275,8 @@ func (s *Server) SendByLogin(login string, response *protocol.Response) (n int) 
 		connection := value.(*Connection)
 		if connection.Login == strings.ToLower(login) {
 			_, _ = connection.Send(response)
+			n++
 		}
-		n++
 		return true
 	})
 	return
